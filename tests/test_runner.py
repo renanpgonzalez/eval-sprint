@@ -1154,7 +1154,7 @@ class ReusedOutDirTests(FlakyJudgeFixture):
         )
         self.finished_run_in(out)
         seen.unlink()
-        self.do_run(out_dir=out, limit=2)
+        self.do_run(["concurrency=1"], out_dir=out, limit=2)  # one thread: concurrent appends to seen.log overwrite each other's line on Windows
         self.assertEqual(seen.read_text(encoding="utf-8").split(), ["False,False", "False,False"])
 
     def test_a_clean_rerun_replaces_the_old_run(self):

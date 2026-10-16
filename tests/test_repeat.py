@@ -177,7 +177,7 @@ class ConfigRepeatTests(RepeatFixture):
             "    return 'good'\n",
             encoding="utf-8",
         )
-        self.do_run(["repeat={n: 1, per_tag: {safety: 3}}"])
+        self.do_run(["repeat={n: 1, per_tag: {safety: 3}}", "concurrency=1"])  # one thread: concurrent appends to calls.log overwrite each other's line on Windows
         calls = [line.split() for line in log.read_text(encoding="utf-8").splitlines()]
         self.assertEqual(sorted(a for cid, a in calls if cid == "mostly-good"), ["0", "1", "2"])  # 0-based
         self.assertEqual([a for cid, a in calls if cid == "always-good"], ["absent"])  # not repeated: no `_attempt`

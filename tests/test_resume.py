@@ -22,11 +22,14 @@ from evalsprint.runner import PARTIAL_NAME, RUN_META_NAME, load_run, run_suite, 
 
 TARGET = '''\
 import os
+import threading
 import time
+
+_LOG_LOCK = threading.Lock()  # two threads appending to one file overwrite each other's line on Windows (append is not atomic there)
 
 
 def answer(input, params):
-    with open(os.environ["RESUME_TEST_CALLS"], "a", encoding="utf-8") as fh:
+    with _LOG_LOCK, open(os.environ["RESUME_TEST_CALLS"], "a", encoding="utf-8") as fh:
         fh.write(f"{input}|{params.get('_attempt')}\\n")
     key = f"{input}|{params.get('_attempt')}"
     stops, crashes = os.environ.get("RESUME_TEST_STOP_AT", "").split(","), os.environ.get("RESUME_TEST_CRASH", "").split(",")
