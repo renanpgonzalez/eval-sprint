@@ -4148,7 +4148,7 @@ class DocsHonestyTests(unittest.TestCase):
         pyproject = read_doc("pyproject.toml")
         version = re.search(r'(?m)^version = "([^"]+)"', pyproject).group(1)
         self.assertEqual(version, "0.2.0")
-        headings = re.findall(r"(?m)^## \[([^\]]+)\]", text)
+        headings = [h for h in re.findall(r"(?m)^## \[([^\]]+)\]", text) if h != "Unreleased"]  # fixes made after the tag wait under [Unreleased]
         self.assertEqual(headings, ["0.2.0", "0.1.0"], "newest first, and only the two releases")
         self.assertEqual(headings[0], version)
         upgrade = text.split("### Upgrading from v0.1 to v0.2", 1)[1].split("\n### ", 1)[0]

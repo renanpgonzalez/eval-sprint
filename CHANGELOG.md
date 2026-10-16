@@ -2,6 +2,19 @@
 
 What changed in each release of the Eval Sprint kit, and what to do when you upgrade. Versions are the git tags of the kit repository (`evalsprint @ git+https://github.com/renanpgonzalez/eval-sprint@vX.Y.Z` in a client's `evals/requirements.txt`). The interfaces are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), what the numbers mean in [docs/METHODOLOGY.md](docs/METHODOLOGY.md).
 
+## [Unreleased]
+
+Found by running the whole test suite on a real Windows machine (Windows 11, Python 3.12) for the first time. None of this changes a gate rule, a baseline or a file format; the tag `v0.2.0` is untouched.
+
+### Fixed
+
+- **`scripts/project_snapshot.py` wrote the snapshot with the wrong line endings on Windows.** It used a text-mode write, so every `\n` became `\r\n`, and a source file from a checkout with `core.autocrlf=true` (the Git for Windows default) came out as `\r\r\n`; the size in the header was not the size of the file either. It now writes the bytes as they are and reads CRLF files as LF, so a Windows checkout gives the same snapshot as a Linux one.
+- **Scrubbing of local paths depended on how the base directory was spelled.** `Target` now resolves `base_dir` the way the loader resolves the adapter's path. Through the CLI nothing changes (the configuration already resolved it). A `Target` built in Python with `.`, a `..` segment, a Windows 8.3 short name (`C:\Users\RENANG~1\...`) or a symlink as base directory left the absolute path of the adapter in `error` and `traceback`, and so in a committed baseline.
+
+### Tests
+
+- Of the ten tests that failed on Windows, seven were assumptions in the tests alone: a text-mode write that already produces CRLF, `/` in an expected path, the 8.3 name of the temp directory, a file-time clock that ticks every 16 ms, and several threads appending to one log file (on Windows two appends can overwrite each other, which also made two more tests fail now and then). The other three (two on the snapshot, one on path scrubbing) led to the fixes above. The tests were corrected, not relaxed, and the new tests fail against the previous code.
+
 ## [0.2.0] - 2026-09-30
 
 Prepared on branch `ciclo3-wip`; the tag `v0.2.0` is created after the merge into `main`.
