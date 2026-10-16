@@ -84,7 +84,7 @@ class TargetSourceFingerprintTests(test_resume.ResumeFixture):
 
     def test_line_endings_and_a_bom_are_not_an_edit(self):
         finished = self.run_it()
-        raw = (self.dir / "target.py").read_bytes()
+        raw = (self.dir / "target.py").read_bytes().replace(b"\r\n", b"\n")  # write_text already wrote CRLF on Windows: start from LF
         (self.dir / "target.py").write_bytes(b"\xef\xbb\xbf" + raw.replace(b"\n", b"\r\n"))  # a Windows checkout of the same file
         run, _ = self.resume(finished.run_dir)
         self.assertEqual((self.calls(), run.summary["resumed_from"]["reused_records"]), ([], 6))

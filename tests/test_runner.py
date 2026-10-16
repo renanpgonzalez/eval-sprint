@@ -1392,7 +1392,7 @@ class CustomJudgeCodeInFingerprintTests(SuiteFixture):
 
     def test_line_endings_and_a_bom_do_not_change_it(self):
         base = self.sha()
-        raw = self.judge_file.read_bytes()
+        raw = self.judge_file.read_bytes().replace(b"\r\n", b"\n")  # write_text already wrote CRLF on Windows: start from LF
         self.judge_file.write_bytes(raw.replace(b"\n", b"\r\n"))
         self.assertEqual(self.sha(), base)
         self.judge_file.write_bytes(b"\xef\xbb\xbf" + raw.replace(b"\n", b"\r\n"))
