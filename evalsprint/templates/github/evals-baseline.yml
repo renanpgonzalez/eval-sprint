@@ -1,0 +1,302 @@
+# Eval Sprint: refresh the committed baseline through a reviewed pull request.
+#
+# Copy to .github/workflows/evals-baseline.yml. Trigger it from the Actions tab
+# ("Run workflow", branch = your default branch) after an intended quality, cost or
+# model change has been merged. It runs the whole suite, copies the run to
+# evals/baseline and opens a PR. Baselines change ONLY through that PR, so a
+# reviewer always sees what moved before it becomes the new reference.
+#
+# It refuses to propose a baseline from an unhealthy run (exit code 3: too many target or judge
+# errors, counted per case and per attempt), and from a placeholder run (the scaffold's offline
+# stub as target, or a judge on the mock provider), because everything is compared against this
+# run afterwards. The PR description lists the number of errors, the attempt error rate and the
+# calibration status so the reviewer sees them.
+
+name: Update eval baseline
+
+on:
+  workflow_dispatch:
+  # Optional: propose a fresh baseline after every merge that changes LLM code.
+  # This costs one full eval run per merge. Do not include evals/** in the filter,
+  # or merging the baseline PR would immediately trigger another one.
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - "prompts/**"
+  #     - "src/llm/**"
+
+permissions: {}
+
+concurrency:
+  group: eval-baseline
+  cancel-in-progress: false  # never abandon a half-finished baseline run
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30  # EDIT: safety net against runaway API spend
+    permissions:
+      contents: write  # push the branch with the new baseline
+      pull-requests: write  # open the pull request
+    env:
+      # EDIT: keep the providers your eval.yaml uses (target and judges).
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - name: Require the default branch and an API key
+        run: |
+          if [ "$GITHUB_REF_NAME" != "$DEFAULT_BRANCH" ]; then
+            echo "::error title=Wrong branch::Run this workflow from the default branch ($DEFAULT_BRANCH), not from $GITHUB_REF_NAME: a baseline must describe the code that is already merged."
+            exit 1
+          fi
+          if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$OPENAI_API_KEY" ]; then
+            echo "::error title=No API key::Add ANTHROPIC_API_KEY or OPENAI_API_KEY as a repository secret."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v5
+        with:
+          # Optional secret. Pull requests opened with the default GITHUB_TOKEN do not
+          # trigger other workflows, so evals.yml would not run on the baseline PR.
+          # A personal access token or GitHub App token here fixes that.
+          token: ${{ secrets.BASELINE_PR_TOKEN || github.token }}
+          # The one checkout in these workflows that keeps its credentials (persist-credentials is left at its
+          # default, true): this job pushes the baseline branch with them. evals.yml, which runs pull request
+          # code, sets persist-credentials: false. This job only ever runs code that is already merged.
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: evals/requirements.txt
+
+      - name: Install dependencies
+        # This job only ever runs code that is already merged to the default branch, so the read token is exposed to
+        # reviewed requirements only (evals.yml, which installs a pull request's requirements, cannot say the same: see README.md).
+        env:
+          EVALSPRINT_READ_TOKEN: ${{ secrets.EVALSPRINT_READ_TOKEN }}
+        run: |
+          if [ -n "$EVALSPRINT_READ_TOKEN" ]; then
+            key="url.https://x-access-token:${EVALSPRINT_READ_TOKEN}@github.com/.insteadOf"
+            git config --global "$key" "https://github.com/"
+            trap 'git config --global --unset-all "$key" || true' EXIT  # the token must not outlive the install
+          fi
+          pip install -r evals/requirements.txt
+
+      - name: Run the suite
+        run: |
+          set +e  # capture the exit code: 3 means an unhealthy run, which must never become a baseline
+          evalsprint run -c evals/eval.yaml --label "baseline-${GITHUB_SHA::7}" --out runs/main --no-report
+          code=$?
+          set -e
+          case "$code" in
+            0) ;;
+            3)
+              echo "::error title=Baseline refused::The run was unhealthy (exit code 3): too many errors from the target or the judge. Nothing was proposed. Fix the cause (provider outage, expired key, broken adapter) and run the workflow again."
+              exit 1
+              ;;
+            2)
+              echo "::error title=Eval configuration error::evalsprint run exited with code 2. See the log above."
+              exit 1
+              ;;
+            *)
+              echo "::error title=Baseline run failed::evalsprint run exited with code $code. See the log above."
+              exit 1
+              ;;
+          esac
+
+          # A rehearsal is not a baseline: `placeholder` is set when the target is the scaffold's offline_stub or a judge ran on the mock
+          # provider. `evalsprint baseline` refuses such a run too; this reads the summary itself, so the refusal does not depend on it.
+          python3 - << 'PY'
+          import json
+          import sys
+
+          try:
+              with open("runs/main/summary.json", encoding="utf-8") as fh:
+                  summary = json.load(fh)
+          except (OSError, ValueError):
+              summary = {}
+          if isinstance(summary, dict) and summary.get("placeholder") is True:
+              print("::error title=Baseline refused::The run is a placeholder (summary.placeholder is true): its target is still the scaffold's offline_stub, or a judge ran on the mock provider (JUDGE_PROVIDER=mock). Its numbers say nothing about your product. Point evals/target_adapter.py at your real system, unset JUDGE_PROVIDER, and run the workflow again. Nothing was proposed.")
+              sys.exit(1)
+          PY
+
+      - name: Copy the run to evals/baseline
+        run: |
+          # Keep the judge calibration that is already committed, so the refreshed baseline stays calibrated.
+          if [ -f evals/baseline/calibration.json ]; then
+            cp evals/baseline/calibration.json runs/main/calibration.json
+          fi
+          # Never --force: evalsprint refuses an unhealthy run here as well.
+          evalsprint baseline runs/main --to evals/baseline
+
+      - name: Open a pull request with the new baseline
+        env:
+          GH_TOKEN: ${{ secrets.BASELINE_PR_TOKEN || github.token }}
+          GH_REPO: ${{ github.repository }}
+          BASE_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ -z "$(git status --porcelain -- evals/baseline)" ]; then
+            echo "The baseline is already up to date; nothing to propose."
+            exit 0
+          fi
+
+          git show HEAD:evals/baseline/summary.json > previous-summary.json 2> /dev/null || rm -f previous-summary.json
+          git show HEAD:evals/baseline/results.jsonl > previous-results.jsonl 2> /dev/null || rm -f previous-results.jsonl
+
+          python3 - << 'PY' > pr-body.md
+          import json
+          import os
+          import pathlib
+
+
+          def load(path):
+              try:
+                  with open(path, encoding="utf-8") as fh:
+                      return json.load(fh)
+              except (OSError, ValueError):
+                  return None
+
+
+          def show(value, template):
+              return "n/a" if value is None else template.format(value)
+
+
+          def load_cases(path):
+              """{case_id: case_sha} from a results.jsonl, or None when the file is missing."""
+              cases = {}
+              try:
+                  with open(path, encoding="utf-8") as fh:
+                      for line in fh:
+                          try:
+                              record = json.loads(line)
+                          except ValueError:
+                              continue
+                          if isinstance(record, dict) and record.get("case_id"):
+                              cases[record["case_id"]] = record.get("case_sha")
+              except OSError:
+                  return None
+              return cases
+
+
+          def ids(values):
+              shown = ", ".join(f"`{v}`" for v in values[:5])
+              return f" ({shown}{', ...' if len(values) > 5 else ''})" if values else ""
+
+
+          summary = load("evals/baseline/summary.json") or {}
+          previous = load("previous-summary.json")
+          calibration = load("evals/baseline/calibration.json")
+          cost = summary.get("cost") or {}
+          latency = summary.get("latency") or {}
+          stability = summary.get("stability") or {}
+
+          pass_rate = show(summary.get("pass_rate"), "{:.1%}")
+          if previous and previous.get("pass_rate") is not None and summary.get("pass_rate") is not None:
+              pass_rate += f" (previous baseline {previous['pass_rate']:.1%}, change {100 * (summary['pass_rate'] - previous['pass_rate']):+.1f} p.p.)"
+
+          n_errors = summary.get("n_errors")
+          errors = show(n_errors, "{}")
+          if n_errors is not None:
+              errors += f" of {summary.get('n_cases', 'n/a')} cases (target {show(summary.get('n_target_errors'), '{}')}, judge {show(summary.get('n_judge_errors'), '{}')})"
+
+          # Per attempt, as the gate counts them: a repeated case that crashed in one attempt and was decided by the others
+          # has no error of its own, but the target is flaky, and every case that crashes here is a case the gate cannot check later.
+          attempt_rate = summary.get("attempt_error_rate")
+          n_attempt_errors = summary.get("n_attempt_errors")
+          attempts = None
+          if isinstance(attempt_rate, (int, float)) and not isinstance(attempt_rate, bool):
+              attempts = f"{show(attempt_rate, '{:.1%}')}"
+              if n_attempt_errors is not None and summary.get("n_attempts") is not None:
+                  attempts += f" ({n_attempt_errors} of {summary['n_attempts']} attempts; target {show(summary.get('n_attempt_target_errors'), '{}')}, judge {show(summary.get('n_attempt_judge_errors'), '{}')})"
+
+          if calibration:
+              # The judge is decided, and the gate compares, on the weighted kappa of the whole run. A calibration.json written
+              # before that estimate existed only has the unweighted kappa of the label sample: say so instead of showing it as the same thing.
+              weighted = "kappa_weighted" in calibration or "kappa_weighted_ci" in calibration
+              kappa = calibration.get("kappa_weighted" if weighted else "kappa")
+              ci = calibration.get("kappa_weighted_ci" if weighted else "kappa_ci")
+              text = f"judge `{calibration.get('judge', 'overall')}`: {'weighted' if weighted else 'unweighted'} kappa {show(kappa, '{:.2f}')}"
+              if ci:
+                  text += f" (95% CI {ci[0]:.2f} to {ci[1]:.2f})"
+              text += f", decision `{calibration.get('kappa_decision', 'n/a')}`, {show(calibration.get('n'), '{}')} labels"
+              if not weighted:
+                  text += ". This file predates the weighted kappa the gate reads: re-run `evalsprint calibrate ... --json` with the current version"
+              if calibration.get("run_id") and calibration.get("run_id") != summary.get("run_id"):
+                  text += f". Carried over from run `{calibration['run_id']}`: re-run `evalsprint calibrate` if the rubric or the judge model changed"
+              calibration_status = text
+          else:
+              calibration_status = "**not calibrated**: no `calibration.json` in the baseline, so the LLM judge is unverified against human labels"
+
+          judges_now, judges_before = summary.get("judges_sha"), (previous or {}).get("judges_sha")
+          judges_changed = bool(judges_now and judges_before and judges_now != judges_before)
+          if not judges_now:
+              judges_text = "n/a (this run was written by an older evalsprint, so a change cannot be detected)"
+          elif not judges_before:
+              judges_text = f"`{judges_now}` (no earlier sha to compare with)"
+          elif judges_changed:
+              judges_text = f"**changed** (`{judges_before}` to `{judges_now}`): the judge block, a rubric or `pass_rule` differs, so pass rates before and after are not comparable"
+          else:
+              judges_text = f"unchanged (`{judges_now}`)"
+
+          old_cases, new_cases = load_cases("previous-results.jsonl"), load_cases("evals/baseline/results.jsonl")
+          added, removed, edited = [], [], []
+          if old_cases is not None and new_cases is not None:
+              added = sorted(set(new_cases) - set(old_cases))
+              removed = sorted(set(old_cases) - set(new_cases))
+              edited = sorted(c for c in set(old_cases) & set(new_cases) if old_cases[c] and new_cases[c] and old_cases[c] != new_cases[c])
+
+          rows = [
+              ("Cases", show(summary.get("n_cases"), "{}")),
+              ("Scored cases (errors excluded)", show(summary.get("n_scored"), "{}")),
+              ("Pass rate", pass_rate),
+              ("Errors", errors),
+              *([("Attempt error rate", attempts)] if attempts is not None else []),
+              ("Judges", judges_text),
+              ("Calibration", calibration_status),
+              ("Mean cost per request", show(cost.get("system_mean_usd"), "${:.4f}")),
+              ("p95 latency", show(latency.get("p95_s"), "{:.2f} s")),
+          ]
+          if stability.get("n_repeated"):
+              rows.append(("Repeated cases / flip rate", f"{stability['n_repeated']} / {show(stability.get('flip_rate'), '{:.1%}')}"))
+          if added or removed or edited:
+              rows.append(("Test set against the previous baseline", f"{len(added)} added{ids(added)}, {len(removed)} removed{ids(removed)}, {len(edited)} edited{ids(edited)}"))
+
+          print("## New eval baseline")
+          print()
+          print(f"Generated by the *Update eval baseline* workflow from commit `{os.environ['GITHUB_SHA'][:7]}` (run `{summary.get('run_id')}`).")
+          print()
+          print("| Metric | Value |")
+          print("|---|---|")
+          for name, value in rows:
+              print(f"| {name} | {value} |")
+          print()
+          if n_errors:
+              print(f"> **Check before merging:** {n_errors} case(s) ended in an error. Errors are excluded from the pass rate, but every case that errors here is a case the gate cannot check later.")
+              print()
+          if isinstance(attempt_rate, (int, float)) and not isinstance(attempt_rate, bool) and attempt_rate > 0:
+              print(f"> **Check before merging:** {attempt_rate:.1%} of the attempts errored (a run above the `max_error_rate` of the gate is refused as unhealthy). A target that crashes at random makes the gate noisier: fix it, or keep `target_retries` at 1 or more.")
+              print()
+          if judges_changed:
+              note = "the judges changed since the previous baseline, so this pass rate is not comparable with the old one."
+              if calibration:
+                  note += " `calibration.json` was carried over from the old judge: re-label a sample and re-run `evalsprint calibrate` before trusting this baseline."
+              print(f"> **Check before merging:** {note}")
+              print()
+          if removed or edited:
+              print(f"> **Check before merging:** {len(removed)} case(s) were removed and {len(edited)} edited since the previous baseline. Confirm that is intended: this is what stops a pull request from hiding failures by editing its own test set.")
+              print()
+          print("Once merged, this becomes the reference every pull request is compared against.")
+          print("`summary.json` changes on every refresh (run id, timestamps); the meaningful diff is in `results.jsonl`.")
+          PY
+
+          branch="evals/baseline-$(date -u +%Y%m%d-%H%M%S)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add evals/baseline
+          git commit -m "evals: refresh baseline from ${GITHUB_SHA::7}"
+          git push --set-upstream origin "$branch"
+          gh pr create --base "$BASE_BRANCH" --head "$branch" \
+            --title "Update eval baseline (${GITHUB_SHA::7})" --body-file pr-body.md

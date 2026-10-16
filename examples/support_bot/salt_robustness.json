@@ -1,0 +1,1654 @@
+{
+ "n_salts": 200,
+ "batches": [
+  {
+   "name": "salt00..salt99",
+   "n": 100,
+   "first": "salt00",
+   "last": "salt99"
+  },
+  {
+   "name": "critic000..critic099",
+   "n": 100,
+   "first": "critic000",
+   "last": "critic099"
+  }
+ ],
+ "claims": {
+  "C01": {
+   "kind": "SCRIPTED",
+   "claim": "v1 (generic prompt) passes at most 2 of the 8 out-of-scope cases",
+   "holds": 197,
+   "n": 200,
+   "share": 0.985,
+   "by_batch": [
+    99,
+    98
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": "min 0.0, p10 0.0, median 12.5, p90 25.0, max 50.0"
+  },
+  "C02": {
+   "kind": "SCRIPTED",
+   "claim": "v1 passes at most 3 of the 8 safety cases",
+   "holds": 200,
+   "n": 200,
+   "share": 1.0,
+   "by_batch": [
+    100,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": "min 0.0, p10 0.0, median 0.0, p90 12.5, max 25.0"
+  },
+  "C03": {
+   "kind": "SCRIPTED",
+   "claim": "v2 passes at least 7 of the 8 safety cases",
+   "holds": 200,
+   "n": 200,
+   "share": 1.0,
+   "by_batch": [
+    100,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": "min 100.0, p10 100.0, median 100.0, p90 100.0, max 100.0"
+  },
+  "C04": {
+   "kind": "SCRIPTED",
+   "claim": "v2 passes all 8 safety cases",
+   "holds": 200,
+   "n": 200,
+   "share": 1.0,
+   "by_batch": [
+    100,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": "min 100.0, p10 100.0, median 100.0, p90 100.0, max 100.0"
+  },
+  "C05": {
+   "kind": "SCRIPTED",
+   "claim": "v2 passes at least 6 of the 8 out-of-scope cases",
+   "holds": 199,
+   "n": 200,
+   "share": 0.995,
+   "by_batch": [
+    99,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": "min 50.0, p10 87.5, median 100.0, p90 100.0, max 100.0"
+  },
+  "C06": {
+   "kind": "MECHANISM+SCRIPTED",
+   "claim": "v2 pass rate is between 80% and 95%",
+   "holds": 200,
+   "n": 200,
+   "share": 1.0,
+   "by_batch": [
+    100,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": "min 82.2, p10 88.9, median 91.1, p90 91.1, max 93.3"
+  },
+  "C07": {
+   "kind": "SCRIPTED",
+   "claim": "v2 pass rate is at least 15 points above v1",
+   "holds": 200,
+   "n": 200,
+   "share": 1.0,
+   "by_batch": [
+    100,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": "min 22.2, p10 26.7, median 31.1, p90 35.6, max 42.2"
+  },
+  "C08": {
+   "kind": "MECHANISM",
+   "claim": "the v1 -> v2 gate PASSES",
+   "holds": 200,
+   "n": 200,
+   "share": 1.0,
+   "by_batch": [
+    100,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": ""
+  },
+  "C09": {
+   "kind": "MECHANISM",
+   "claim": "the v1 -> v2 gate names no critical (safety) regression",
+   "holds": 200,
+   "n": 200,
+   "share": 1.0,
+   "by_batch": [
+    100,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": ""
+  },
+  "C10": {
+   "kind": "MECHANISM",
+   "claim": "v3 passes at most 4 of the 9 multi-part cases (v2: at least 7)",
+   "holds": 198,
+   "n": 200,
+   "share": 0.99,
+   "by_batch": [
+    100,
+    98
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": "min 22.2, p10 33.3, median 33.3, p90 33.3, max 44.4"
+  },
+  "C11": {
+   "kind": "MECHANISM",
+   "claim": "the v2 -> v3 gate is a REGRESSION",
+   "holds": 199,
+   "n": 200,
+   "share": 0.995,
+   "by_batch": [
+    99,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": ""
+  },
+  "C12": {
+   "kind": "MECHANISM",
+   "claim": "the v2 -> v3 regression comes from the pass-rate drop (a pass-rate reason is listed)",
+   "holds": 199,
+   "n": 200,
+   "share": 0.995,
+   "by_batch": [
+    99,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": ""
+  },
+  "C13": {
+   "kind": "MECHANISM",
+   "claim": "v3 costs at least 50% less per request than v2",
+   "holds": 200,
+   "n": 200,
+   "share": 1.0,
+   "by_batch": [
+    100,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": "min 55.2, p10 57.6, median 58.0, p90 58.3, max 58.9"
+  },
+  "C14": {
+   "kind": "MECHANISM",
+   "claim": "v2 costs less than 30% more per request than v1",
+   "holds": 200,
+   "n": 200,
+   "share": 1.0,
+   "by_batch": [
+    100,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": "min 16.8, p10 17.9, median 18.6, p90 19.4, max 20.7"
+  },
+  "C15": {
+   "kind": "INVENTED",
+   "claim": "the v2 -> v3 gate names a critical safety regression",
+   "holds": 26,
+   "n": 200,
+   "share": 0.13,
+   "by_batch": [
+    12,
+    14
+   ],
+   "default_seed": false,
+   "headline_ok": false,
+   "range": ""
+  },
+  "C16": {
+   "kind": "INVENTED",
+   "claim": "v3 passes all 8 safety cases",
+   "holds": 174,
+   "n": 200,
+   "share": 0.87,
+   "by_batch": [
+    88,
+    86
+   ],
+   "default_seed": true,
+   "headline_ok": false,
+   "range": "min 87.5, p10 87.5, median 100.0, p90 100.0, max 100.0"
+  },
+  "C17": {
+   "kind": "SCRIPTED",
+   "claim": "refunds-002 (\"how long do refunds take to arrive\") passes on v1 and fails on v2",
+   "holds": 136,
+   "n": 200,
+   "share": 0.68,
+   "by_batch": [
+    70,
+    66
+   ],
+   "default_seed": true,
+   "headline_ok": false,
+   "range": ""
+  },
+  "C18": {
+   "kind": "MECHANISM",
+   "claim": "attribution: with Sonnet and top_k 1 multi-part is still at most 4 of 9",
+   "holds": 200,
+   "n": 200,
+   "share": 1.0,
+   "by_batch": [
+    100,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": "min 22.2, p10 33.3, median 33.3, p90 33.3, max 44.4"
+  },
+  "C19": {
+   "kind": "MECHANISM",
+   "claim": "attribution: with Haiku and top_k 3 multi-part is at least 7 of 9",
+   "holds": 200,
+   "n": 200,
+   "share": 1.0,
+   "by_batch": [
+    100,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": "min 77.8, p10 88.9, median 88.9, p90 88.9, max 88.9"
+  },
+  "C20": {
+   "kind": "MECHANISM",
+   "claim": "attribution: v2 -> (Sonnet, top_k 1) is a REGRESSION",
+   "holds": 199,
+   "n": 200,
+   "share": 0.995,
+   "by_batch": [
+    99,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": ""
+  },
+  "C21": {
+   "kind": "INVENTED",
+   "claim": "Haiku with top_k 3 also fails the gate (safety flips or pass-rate drop)",
+   "holds": 35,
+   "n": 200,
+   "share": 0.175,
+   "by_batch": [
+    19,
+    16
+   ],
+   "default_seed": true,
+   "headline_ok": false,
+   "range": ""
+  },
+  "C22": {
+   "kind": "INVENTED",
+   "claim": "flip rate on the repeated safety cases: v2 lower than v1",
+   "holds": 189,
+   "n": 200,
+   "share": 0.945,
+   "by_batch": [
+    92,
+    97
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": "min 0.0, p10 0.0, median 12.5, p90 25.0, max 62.5"
+  },
+  "C23": {
+   "kind": "INVENTED",
+   "claim": "flip rate of v2 is at most 25% of the 8 repeated cases",
+   "holds": 189,
+   "n": 200,
+   "share": 0.945,
+   "by_batch": [
+    93,
+    96
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": "min 0.0, p10 0.0, median 12.5, p90 25.0, max 62.5"
+  },
+  "C24": {
+   "kind": "INVENTED",
+   "claim": "flip rate of v1 is at least 25%",
+   "holds": 196,
+   "n": 200,
+   "share": 0.98,
+   "by_batch": [
+    99,
+    97
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": "min 12.5, p10 37.5, median 50.0, p90 62.5, max 75.0"
+  },
+  "C25": {
+   "kind": "INVENTED",
+   "claim": "flip rate of v3 is at least 25%",
+   "holds": 188,
+   "n": 200,
+   "share": 0.94,
+   "by_batch": [
+    94,
+    94
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": "min 0.0, p10 25.0, median 50.0, p90 62.5, max 87.5"
+  },
+  "C26": {
+   "kind": "MECHANISM",
+   "claim": "no run has an error (errors are 0 in v1, v2 and v3)",
+   "holds": 200,
+   "n": 200,
+   "share": 1.0,
+   "by_batch": [
+    100,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": ""
+  },
+  "C27": {
+   "kind": "INVENTED",
+   "claim": "A/A: the gate does NOT flag v2 run twice as a regression",
+   "holds": 198,
+   "n": 200,
+   "share": 0.99,
+   "by_batch": [
+    99,
+    99
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": "min -8.9, p10 -2.2, median 0.0, p90 2.2, max 6.7"
+  },
+  "C28": {
+   "kind": "INVENTED",
+   "claim": "A/A: the gate does NOT flag v1 run twice as a regression",
+   "holds": 137,
+   "n": 200,
+   "share": 0.685,
+   "by_batch": [
+    59,
+    78
+   ],
+   "default_seed": false,
+   "headline_ok": false,
+   "range": "min -11.1, p10 -4.4, median 0.0, p90 4.4, max 13.3"
+  },
+  "C29": {
+   "kind": "INVENTED",
+   "claim": "A/A: the gate does NOT flag v3 run twice as a regression",
+   "holds": 178,
+   "n": 200,
+   "share": 0.89,
+   "by_batch": [
+    87,
+    91
+   ],
+   "default_seed": true,
+   "headline_ok": false,
+   "range": "min -8.9, p10 -4.4, median 0.0, p90 4.4, max 6.7"
+  },
+  "C30": {
+   "kind": "SCRIPTED",
+   "claim": "calibration (synthetic human) agreement on v2 is at least 85%",
+   "holds": 200,
+   "n": 200,
+   "share": 1.0,
+   "by_batch": [
+    100,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": "min 90.0, p10 95.0, median 95.0, p90 97.5, max 100.0"
+  },
+  "C31": {
+   "kind": "SCRIPTED",
+   "claim": "kappa_decision on the v2 calibration is 'inconclusive' or better than 'not_trustworthy'",
+   "holds": 200,
+   "n": 200,
+   "share": 1.0,
+   "by_batch": [
+    100,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": ""
+  },
+  "C32": {
+   "kind": "MECHANISM",
+   "claim": "the 40 labels do not settle the judge: decision is 'inconclusive' or 'insufficient_data'",
+   "holds": 200,
+   "n": 200,
+   "share": 1.0,
+   "by_batch": [
+    100,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": ""
+  },
+  "C33": {
+   "kind": "MECHANISM",
+   "claim": "the true-negative screening check is not passed (few failing cases in the sample)",
+   "holds": 200,
+   "n": 200,
+   "share": 1.0,
+   "by_batch": [
+    100,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": ""
+  },
+  "C34": {
+   "kind": "SCRIPTED",
+   "claim": "oracle and simulated judge agree on at least 85% of all 135 records",
+   "holds": 200,
+   "n": 200,
+   "share": 1.0,
+   "by_batch": [
+    100,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": "min 90.4, p10 91.9, median 92.6, p90 93.3, max 94.8"
+  },
+  "C35": {
+   "kind": "SCRIPTED",
+   "claim": "oracle and simulated judge disagree on at least 3 records (they are not the same rules)",
+   "holds": 200,
+   "n": 200,
+   "share": 1.0,
+   "by_batch": [
+    100,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": ""
+  },
+  "C36": {
+   "kind": "SCRIPTED",
+   "claim": "refunds-002 fails on v2 (the grounded prompt abstains on the paraphrase \"arrive\" for \"reach\")",
+   "holds": 196,
+   "n": 200,
+   "share": 0.98,
+   "by_batch": [
+    98,
+    98
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": ""
+  },
+  "C37": {
+   "kind": "MECHANISM",
+   "claim": "the labels needed for a +/-0.10 kappa interval exceed the 45 labelable cases, so the calibration says to label all of them (labels_needed_capped)",
+   "holds": 200,
+   "n": 200,
+   "share": 1.0,
+   "by_batch": [
+    100,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": ""
+  },
+  "C38": {
+   "kind": "INVENTED",
+   "claim": "A/A with repeat n=3 on every case: the gate does NOT flag v1 run twice as a regression",
+   "holds": 111,
+   "n": 200,
+   "share": 0.555,
+   "by_batch": [
+    50,
+    61
+   ],
+   "default_seed": false,
+   "headline_ok": false,
+   "range": "min -6.7, p10 -4.4, median 0.0, p90 4.4, max 11.1"
+  },
+  "C39": {
+   "kind": "INVENTED",
+   "claim": "A/A with repeat n=3 on every case: the gate does NOT flag v2 run twice as a regression",
+   "holds": 198,
+   "n": 200,
+   "share": 0.99,
+   "by_batch": [
+    100,
+    98
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": "min -2.2, p10 0.0, median 0.0, p90 0.0, max 2.2"
+  },
+  "C40": {
+   "kind": "INVENTED",
+   "claim": "A/A with repeat n=3 on every case: the gate does NOT flag v3 run twice as a regression",
+   "holds": 149,
+   "n": 200,
+   "share": 0.745,
+   "by_batch": [
+    72,
+    77
+   ],
+   "default_seed": false,
+   "headline_ok": false,
+   "range": "min -6.7, p10 -2.2, median 0.0, p90 2.2, max 6.7"
+  },
+  "C41": {
+   "kind": "MECHANISM",
+   "claim": "with repeat n=3 on every case the v2 -> v3 gate is still a REGRESSION",
+   "holds": 200,
+   "n": 200,
+   "share": 1.0,
+   "by_batch": [
+    100,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": ""
+  },
+  "C42": {
+   "kind": "INVENTED",
+   "claim": "A/A with repeat n=5 on every case: the gate does NOT flag v1 run twice as a regression",
+   "holds": 144,
+   "n": 200,
+   "share": 0.72,
+   "by_batch": [
+    64,
+    80
+   ],
+   "default_seed": false,
+   "headline_ok": false,
+   "range": "min -6.7, p10 -2.2, median 0.0, p90 2.2, max 8.9"
+  },
+  "C43": {
+   "kind": "INVENTED",
+   "claim": "A/A with repeat n=5 on every case: the gate does NOT flag v2 run twice as a regression",
+   "holds": 200,
+   "n": 200,
+   "share": 1.0,
+   "by_batch": [
+    100,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": "min -2.2, p10 0.0, median 0.0, p90 0.0, max 0.0"
+  },
+  "C44": {
+   "kind": "INVENTED",
+   "claim": "A/A with repeat n=5 on every case: the gate does NOT flag v3 run twice as a regression",
+   "holds": 184,
+   "n": 200,
+   "share": 0.92,
+   "by_batch": [
+    90,
+    94
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": "min -4.4, p10 -2.2, median 0.0, p90 2.2, max 4.4"
+  },
+  "C45": {
+   "kind": "MECHANISM",
+   "claim": "with repeat n=5 on every case the v2 -> v3 gate is still a REGRESSION",
+   "holds": 200,
+   "n": 200,
+   "share": 1.0,
+   "by_batch": [
+    100,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": ""
+  },
+  "C46": {
+   "kind": "INVENTED",
+   "claim": "A/A with repeat n=3 and per_tag safety 5: the gate does NOT flag v1 run twice as a regression",
+   "holds": 143,
+   "n": 200,
+   "share": 0.715,
+   "by_batch": [
+    63,
+    80
+   ],
+   "default_seed": false,
+   "headline_ok": false,
+   "range": "min -8.9, p10 -4.4, median 0.0, p90 4.4, max 8.9"
+  },
+  "C47": {
+   "kind": "INVENTED",
+   "claim": "A/A with repeat n=3 and per_tag safety 5: the gate does NOT flag v2 run twice as a regression",
+   "holds": 200,
+   "n": 200,
+   "share": 1.0,
+   "by_batch": [
+    100,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": "min -2.2, p10 0.0, median 0.0, p90 0.0, max 2.2"
+  },
+  "C48": {
+   "kind": "INVENTED",
+   "claim": "A/A with repeat n=3 and per_tag safety 5: the gate does NOT flag v3 run twice as a regression",
+   "holds": 183,
+   "n": 200,
+   "share": 0.915,
+   "by_batch": [
+    90,
+    93
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": "min -6.7, p10 -2.2, median 0.0, p90 2.2, max 6.7"
+  },
+  "C49": {
+   "kind": "MECHANISM",
+   "claim": "with repeat n=3 and per_tag safety 5 the v2 -> v3 gate is still a REGRESSION",
+   "holds": 200,
+   "n": 200,
+   "share": 1.0,
+   "by_batch": [
+    100,
+    100
+   ],
+   "default_seed": true,
+   "headline_ok": true,
+   "range": ""
+  }
+ },
+ "ranges": {
+  "v1_pass_rate": {
+   "dash": "49-64%",
+   "to": "49% to 64%"
+  },
+  "v1_flip_rate": {
+   "dash": "12-75%",
+   "to": "12% to 75%"
+  },
+  "v1_cost_per_1k": {
+   "dash": "$1.35-1.38",
+   "to": "$1.35 to $1.38"
+  },
+  "v1_answerable": {
+   "dash": "75-90%",
+   "to": "75% to 90%"
+  },
+  "v1_multi_part": {
+   "dash": "67-89%",
+   "to": "67% to 89%"
+  },
+  "v1_out_of_scope": {
+   "dash": "0-50%",
+   "to": "0% to 50%"
+  },
+  "v1_safety": {
+   "dash": "0-25%",
+   "to": "0% to 25%"
+  },
+  "v2_pass_rate": {
+   "dash": "82-93%",
+   "to": "82% to 93%"
+  },
+  "v2_flip_rate": {
+   "dash": "0-62%",
+   "to": "0% to 62%"
+  },
+  "v2_cost_per_1k": {
+   "dash": "$1.61-1.66",
+   "to": "$1.61 to $1.66"
+  },
+  "v2_answerable": {
+   "dash": "80-90%",
+   "to": "80% to 90%"
+  },
+  "v2_multi_part": {
+   "dash": "56-89%",
+   "to": "56% to 89%"
+  },
+  "v2_out_of_scope": {
+   "dash": "50-100%",
+   "to": "50% to 100%"
+  },
+  "v2_safety": {
+   "dash": "100%",
+   "to": "100%"
+  },
+  "v3_pass_rate": {
+   "dash": "67-80%",
+   "to": "67% to 80%"
+  },
+  "v3_flip_rate": {
+   "dash": "0-88%",
+   "to": "0% to 88%"
+  },
+  "v3_cost_per_1k": {
+   "dash": "$0.67-0.73",
+   "to": "$0.67 to $0.73"
+  },
+  "v3_answerable": {
+   "dash": "70-80%",
+   "to": "70% to 80%"
+  },
+  "v3_multi_part": {
+   "dash": "22-44%",
+   "to": "22% to 44%"
+  },
+  "v3_out_of_scope": {
+   "dash": "50-100%",
+   "to": "50% to 100%"
+  },
+  "v3_safety": {
+   "dash": "88-100%",
+   "to": "88% to 100%"
+  },
+  "v3_cheaper_than_v2": {
+   "dash": "55-59%",
+   "to": "55% to 59%"
+  },
+  "v2_dearer_than_v1": {
+   "dash": "17-21%",
+   "to": "17% to 21%"
+  },
+  "v2_gain_over_v1_points": {
+   "dash": "22-42",
+   "to": "22 to 42"
+  },
+  "v3_multi_part_passes": {
+   "dash": "2-4",
+   "to": "2 to 4"
+  },
+  "v2_multi_part_passes": {
+   "dash": "5-8",
+   "to": "5 to 8"
+  },
+  "calibration_agreement": {
+   "dash": "90-100%",
+   "to": "90% to 100%"
+  },
+  "weighted_kappa": {
+   "dash": "0.52-1.00",
+   "to": "0.52 to 1.00"
+  },
+  "weighted_kappa_ci_low": {
+   "dash": "-0.04-0.58",
+   "to": "-0.04 to 0.58"
+  },
+  "oracle_agreement": {
+   "dash": "90-95%",
+   "to": "90% to 95%"
+  },
+  "oracle_disagreements": {
+   "dash": "7-13",
+   "to": "7 to 13"
+  },
+  "oracle_records": {
+   "dash": "135",
+   "to": "135"
+  }
+ },
+ "repeat_protocols": {
+  "n": 200,
+  "safety5": {
+   "attempts_per_run": 77,
+   "false_alarms": {
+    "v1": 63,
+    "v2": 2,
+    "v3": 22
+   },
+   "false_alarms_by_critical_rule": {
+    "v1": 56,
+    "v2": 0,
+    "v3": 16
+   },
+   "false_alarms_by_pass_rate_rule": {
+    "v1": 18,
+    "v2": 2,
+    "v3": 8
+   },
+   "false_alarms_pooled": 87,
+   "pairs_pooled": 600,
+   "by_pass_rate_rule": 28,
+   "by_critical_rule": 72,
+   "by_both": 13,
+   "detected": {
+    "v2_v3": 199,
+    "v2_haiku_topk3": 35
+   }
+  },
+  "all3": {
+   "attempts_per_run": 135,
+   "false_alarms": {
+    "v1": 89,
+    "v2": 2,
+    "v3": 51
+   },
+   "false_alarms_by_critical_rule": {
+    "v1": 89,
+    "v2": 2,
+    "v3": 50
+   },
+   "false_alarms_by_pass_rate_rule": {
+    "v1": 10,
+    "v2": 0,
+    "v3": 3
+   },
+   "false_alarms_pooled": 142,
+   "pairs_pooled": 600,
+   "by_pass_rate_rule": 13,
+   "by_critical_rule": 141,
+   "by_both": 12,
+   "detected": {
+    "v2_v3": 200,
+    "v2_haiku_topk3": 62
+   }
+  },
+  "all5": {
+   "attempts_per_run": 225,
+   "false_alarms": {
+    "v1": 56,
+    "v2": 0,
+    "v3": 16
+   },
+   "false_alarms_by_critical_rule": {
+    "v1": 56,
+    "v2": 0,
+    "v3": 16
+   },
+   "false_alarms_by_pass_rate_rule": {
+    "v1": 2,
+    "v2": 0,
+    "v3": 0
+   },
+   "false_alarms_pooled": 72,
+   "pairs_pooled": 600,
+   "by_pass_rate_rule": 2,
+   "by_critical_rule": 72,
+   "by_both": 2,
+   "detected": {
+    "v2_v3": 200,
+    "v2_haiku_topk3": 26
+   }
+  },
+  "pertag": {
+   "attempts_per_run": 151,
+   "false_alarms": {
+    "v1": 57,
+    "v2": 0,
+    "v3": 17
+   },
+   "false_alarms_by_critical_rule": {
+    "v1": 56,
+    "v2": 0,
+    "v3": 16
+   },
+   "false_alarms_by_pass_rate_rule": {
+    "v1": 5,
+    "v2": 0,
+    "v3": 2
+   },
+   "false_alarms_pooled": 74,
+   "pairs_pooled": 600,
+   "by_pass_rate_rule": 7,
+   "by_critical_rule": 72,
+   "by_both": 5,
+   "detected": {
+    "v2_v3": 200,
+    "v2_haiku_topk3": 26
+   }
+  }
+ },
+ "repeat_protocols_by_batch": {
+  "salt00..salt99": {
+   "n": 100,
+   "safety5": {
+    "attempts_per_run": 77,
+    "false_alarms": {
+     "v1": 41,
+     "v2": 1,
+     "v3": 13
+    },
+    "false_alarms_by_critical_rule": {
+     "v1": 36,
+     "v2": 0,
+     "v3": 10
+    },
+    "false_alarms_by_pass_rate_rule": {
+     "v1": 11,
+     "v2": 1,
+     "v3": 4
+    },
+    "false_alarms_pooled": 55,
+    "pairs_pooled": 300,
+    "by_pass_rate_rule": 16,
+    "by_critical_rule": 46,
+    "by_both": 7,
+    "detected": {
+     "v2_v3": 99,
+     "v2_haiku_topk3": 19
+    }
+   },
+   "all3": {
+    "attempts_per_run": 135,
+    "false_alarms": {
+     "v1": 50,
+     "v2": 0,
+     "v3": 28
+    },
+    "false_alarms_by_critical_rule": {
+     "v1": 50,
+     "v2": 0,
+     "v3": 28
+    },
+    "false_alarms_by_pass_rate_rule": {
+     "v1": 6,
+     "v2": 0,
+     "v3": 0
+    },
+    "false_alarms_pooled": 78,
+    "pairs_pooled": 300,
+    "by_pass_rate_rule": 6,
+    "by_critical_rule": 78,
+    "by_both": 6,
+    "detected": {
+     "v2_v3": 100,
+     "v2_haiku_topk3": 29
+    }
+   },
+   "all5": {
+    "attempts_per_run": 225,
+    "false_alarms": {
+     "v1": 36,
+     "v2": 0,
+     "v3": 10
+    },
+    "false_alarms_by_critical_rule": {
+     "v1": 36,
+     "v2": 0,
+     "v3": 10
+    },
+    "false_alarms_by_pass_rate_rule": {
+     "v1": 0,
+     "v2": 0,
+     "v3": 0
+    },
+    "false_alarms_pooled": 46,
+    "pairs_pooled": 300,
+    "by_pass_rate_rule": 0,
+    "by_critical_rule": 46,
+    "by_both": 0,
+    "detected": {
+     "v2_v3": 100,
+     "v2_haiku_topk3": 13
+    }
+   },
+   "pertag": {
+    "attempts_per_run": 151,
+    "false_alarms": {
+     "v1": 37,
+     "v2": 0,
+     "v3": 10
+    },
+    "false_alarms_by_critical_rule": {
+     "v1": 36,
+     "v2": 0,
+     "v3": 10
+    },
+    "false_alarms_by_pass_rate_rule": {
+     "v1": 2,
+     "v2": 0,
+     "v3": 0
+    },
+    "false_alarms_pooled": 47,
+    "pairs_pooled": 300,
+    "by_pass_rate_rule": 2,
+    "by_critical_rule": 46,
+    "by_both": 1,
+    "detected": {
+     "v2_v3": 100,
+     "v2_haiku_topk3": 13
+    }
+   }
+  },
+  "critic000..critic099": {
+   "n": 100,
+   "safety5": {
+    "attempts_per_run": 77,
+    "false_alarms": {
+     "v1": 22,
+     "v2": 1,
+     "v3": 9
+    },
+    "false_alarms_by_critical_rule": {
+     "v1": 20,
+     "v2": 0,
+     "v3": 6
+    },
+    "false_alarms_by_pass_rate_rule": {
+     "v1": 7,
+     "v2": 1,
+     "v3": 4
+    },
+    "false_alarms_pooled": 32,
+    "pairs_pooled": 300,
+    "by_pass_rate_rule": 12,
+    "by_critical_rule": 26,
+    "by_both": 6,
+    "detected": {
+     "v2_v3": 100,
+     "v2_haiku_topk3": 16
+    }
+   },
+   "all3": {
+    "attempts_per_run": 135,
+    "false_alarms": {
+     "v1": 39,
+     "v2": 2,
+     "v3": 23
+    },
+    "false_alarms_by_critical_rule": {
+     "v1": 39,
+     "v2": 2,
+     "v3": 22
+    },
+    "false_alarms_by_pass_rate_rule": {
+     "v1": 4,
+     "v2": 0,
+     "v3": 3
+    },
+    "false_alarms_pooled": 64,
+    "pairs_pooled": 300,
+    "by_pass_rate_rule": 7,
+    "by_critical_rule": 63,
+    "by_both": 6,
+    "detected": {
+     "v2_v3": 100,
+     "v2_haiku_topk3": 33
+    }
+   },
+   "all5": {
+    "attempts_per_run": 225,
+    "false_alarms": {
+     "v1": 20,
+     "v2": 0,
+     "v3": 6
+    },
+    "false_alarms_by_critical_rule": {
+     "v1": 20,
+     "v2": 0,
+     "v3": 6
+    },
+    "false_alarms_by_pass_rate_rule": {
+     "v1": 2,
+     "v2": 0,
+     "v3": 0
+    },
+    "false_alarms_pooled": 26,
+    "pairs_pooled": 300,
+    "by_pass_rate_rule": 2,
+    "by_critical_rule": 26,
+    "by_both": 2,
+    "detected": {
+     "v2_v3": 100,
+     "v2_haiku_topk3": 13
+    }
+   },
+   "pertag": {
+    "attempts_per_run": 151,
+    "false_alarms": {
+     "v1": 20,
+     "v2": 0,
+     "v3": 7
+    },
+    "false_alarms_by_critical_rule": {
+     "v1": 20,
+     "v2": 0,
+     "v3": 6
+    },
+    "false_alarms_by_pass_rate_rule": {
+     "v1": 3,
+     "v2": 0,
+     "v3": 2
+    },
+    "false_alarms_pooled": 27,
+    "pairs_pooled": 300,
+    "by_pass_rate_rule": 5,
+    "by_critical_rule": 26,
+    "by_both": 4,
+    "detected": {
+     "v2_v3": 100,
+     "v2_haiku_topk3": 13
+    }
+   }
+  }
+ },
+ "repeat_ranges": {
+  "safety5": {
+   "false_alarm_v1": {
+    "lo": 22,
+    "hi": 41,
+    "of": 100,
+    "text": "22 to 41 of 100",
+    "pooled": 63,
+    "pooled_of": 200,
+    "per_batch": [
+     41,
+     22
+    ],
+    "uniform_batches": true
+   },
+   "false_alarm_v2": {
+    "lo": 1,
+    "hi": 1,
+    "of": 100,
+    "text": "1 of 100",
+    "pooled": 2,
+    "pooled_of": 200,
+    "per_batch": [
+     1,
+     1
+    ],
+    "uniform_batches": true
+   },
+   "false_alarm_v3": {
+    "lo": 9,
+    "hi": 13,
+    "of": 100,
+    "text": "9 to 13 of 100",
+    "pooled": 22,
+    "pooled_of": 200,
+    "per_batch": [
+     13,
+     9
+    ],
+    "uniform_batches": true
+   },
+   "detected_v2_v3": {
+    "lo": 99,
+    "hi": 100,
+    "of": 100,
+    "text": "99 to 100 of 100",
+    "pooled": 199,
+    "pooled_of": 200,
+    "per_batch": [
+     99,
+     100
+    ],
+    "uniform_batches": true
+   },
+   "detected_v2_haiku_topk3": {
+    "lo": 16,
+    "hi": 19,
+    "of": 100,
+    "text": "16 to 19 of 100",
+    "pooled": 35,
+    "pooled_of": 200,
+    "per_batch": [
+     19,
+     16
+    ],
+    "uniform_batches": true
+   },
+   "pairs_any_rule": {
+    "lo": 32,
+    "hi": 55,
+    "of": 300,
+    "text": "32 to 55 of 300",
+    "pooled": 87,
+    "pooled_of": 600,
+    "per_batch": [
+     55,
+     32
+    ],
+    "uniform_batches": true
+   },
+   "pairs_pass_rate_rule": {
+    "lo": 12,
+    "hi": 16,
+    "of": 300,
+    "text": "12 to 16 of 300",
+    "pooled": 28,
+    "pooled_of": 600,
+    "per_batch": [
+     16,
+     12
+    ],
+    "uniform_batches": true
+   },
+   "pairs_critical_rule": {
+    "lo": 26,
+    "hi": 46,
+    "of": 300,
+    "text": "26 to 46 of 300",
+    "pooled": 72,
+    "pooled_of": 600,
+    "per_batch": [
+     46,
+     26
+    ],
+    "uniform_batches": true
+   }
+  },
+  "all3": {
+   "false_alarm_v1": {
+    "lo": 39,
+    "hi": 50,
+    "of": 100,
+    "text": "39 to 50 of 100",
+    "pooled": 89,
+    "pooled_of": 200,
+    "per_batch": [
+     50,
+     39
+    ],
+    "uniform_batches": true
+   },
+   "false_alarm_v2": {
+    "lo": 0,
+    "hi": 2,
+    "of": 100,
+    "text": "0 to 2 of 100",
+    "pooled": 2,
+    "pooled_of": 200,
+    "per_batch": [
+     0,
+     2
+    ],
+    "uniform_batches": true
+   },
+   "false_alarm_v3": {
+    "lo": 23,
+    "hi": 28,
+    "of": 100,
+    "text": "23 to 28 of 100",
+    "pooled": 51,
+    "pooled_of": 200,
+    "per_batch": [
+     28,
+     23
+    ],
+    "uniform_batches": true
+   },
+   "detected_v2_v3": {
+    "lo": 100,
+    "hi": 100,
+    "of": 100,
+    "text": "100 of 100",
+    "pooled": 200,
+    "pooled_of": 200,
+    "per_batch": [
+     100,
+     100
+    ],
+    "uniform_batches": true
+   },
+   "detected_v2_haiku_topk3": {
+    "lo": 29,
+    "hi": 33,
+    "of": 100,
+    "text": "29 to 33 of 100",
+    "pooled": 62,
+    "pooled_of": 200,
+    "per_batch": [
+     29,
+     33
+    ],
+    "uniform_batches": true
+   },
+   "pairs_any_rule": {
+    "lo": 64,
+    "hi": 78,
+    "of": 300,
+    "text": "64 to 78 of 300",
+    "pooled": 142,
+    "pooled_of": 600,
+    "per_batch": [
+     78,
+     64
+    ],
+    "uniform_batches": true
+   },
+   "pairs_pass_rate_rule": {
+    "lo": 6,
+    "hi": 7,
+    "of": 300,
+    "text": "6 to 7 of 300",
+    "pooled": 13,
+    "pooled_of": 600,
+    "per_batch": [
+     6,
+     7
+    ],
+    "uniform_batches": true
+   },
+   "pairs_critical_rule": {
+    "lo": 63,
+    "hi": 78,
+    "of": 300,
+    "text": "63 to 78 of 300",
+    "pooled": 141,
+    "pooled_of": 600,
+    "per_batch": [
+     78,
+     63
+    ],
+    "uniform_batches": true
+   }
+  },
+  "all5": {
+   "false_alarm_v1": {
+    "lo": 20,
+    "hi": 36,
+    "of": 100,
+    "text": "20 to 36 of 100",
+    "pooled": 56,
+    "pooled_of": 200,
+    "per_batch": [
+     36,
+     20
+    ],
+    "uniform_batches": true
+   },
+   "false_alarm_v2": {
+    "lo": 0,
+    "hi": 0,
+    "of": 100,
+    "text": "0 of 100",
+    "pooled": 0,
+    "pooled_of": 200,
+    "per_batch": [
+     0,
+     0
+    ],
+    "uniform_batches": true
+   },
+   "false_alarm_v3": {
+    "lo": 6,
+    "hi": 10,
+    "of": 100,
+    "text": "6 to 10 of 100",
+    "pooled": 16,
+    "pooled_of": 200,
+    "per_batch": [
+     10,
+     6
+    ],
+    "uniform_batches": true
+   },
+   "detected_v2_v3": {
+    "lo": 100,
+    "hi": 100,
+    "of": 100,
+    "text": "100 of 100",
+    "pooled": 200,
+    "pooled_of": 200,
+    "per_batch": [
+     100,
+     100
+    ],
+    "uniform_batches": true
+   },
+   "detected_v2_haiku_topk3": {
+    "lo": 13,
+    "hi": 13,
+    "of": 100,
+    "text": "13 of 100",
+    "pooled": 26,
+    "pooled_of": 200,
+    "per_batch": [
+     13,
+     13
+    ],
+    "uniform_batches": true
+   },
+   "pairs_any_rule": {
+    "lo": 26,
+    "hi": 46,
+    "of": 300,
+    "text": "26 to 46 of 300",
+    "pooled": 72,
+    "pooled_of": 600,
+    "per_batch": [
+     46,
+     26
+    ],
+    "uniform_batches": true
+   },
+   "pairs_pass_rate_rule": {
+    "lo": 0,
+    "hi": 2,
+    "of": 300,
+    "text": "0 to 2 of 300",
+    "pooled": 2,
+    "pooled_of": 600,
+    "per_batch": [
+     0,
+     2
+    ],
+    "uniform_batches": true
+   },
+   "pairs_critical_rule": {
+    "lo": 26,
+    "hi": 46,
+    "of": 300,
+    "text": "26 to 46 of 300",
+    "pooled": 72,
+    "pooled_of": 600,
+    "per_batch": [
+     46,
+     26
+    ],
+    "uniform_batches": true
+   }
+  },
+  "pertag": {
+   "false_alarm_v1": {
+    "lo": 20,
+    "hi": 37,
+    "of": 100,
+    "text": "20 to 37 of 100",
+    "pooled": 57,
+    "pooled_of": 200,
+    "per_batch": [
+     37,
+     20
+    ],
+    "uniform_batches": true
+   },
+   "false_alarm_v2": {
+    "lo": 0,
+    "hi": 0,
+    "of": 100,
+    "text": "0 of 100",
+    "pooled": 0,
+    "pooled_of": 200,
+    "per_batch": [
+     0,
+     0
+    ],
+    "uniform_batches": true
+   },
+   "false_alarm_v3": {
+    "lo": 7,
+    "hi": 10,
+    "of": 100,
+    "text": "7 to 10 of 100",
+    "pooled": 17,
+    "pooled_of": 200,
+    "per_batch": [
+     10,
+     7
+    ],
+    "uniform_batches": true
+   },
+   "detected_v2_v3": {
+    "lo": 100,
+    "hi": 100,
+    "of": 100,
+    "text": "100 of 100",
+    "pooled": 200,
+    "pooled_of": 200,
+    "per_batch": [
+     100,
+     100
+    ],
+    "uniform_batches": true
+   },
+   "detected_v2_haiku_topk3": {
+    "lo": 13,
+    "hi": 13,
+    "of": 100,
+    "text": "13 of 100",
+    "pooled": 26,
+    "pooled_of": 200,
+    "per_batch": [
+     13,
+     13
+    ],
+    "uniform_batches": true
+   },
+   "pairs_any_rule": {
+    "lo": 27,
+    "hi": 47,
+    "of": 300,
+    "text": "27 to 47 of 300",
+    "pooled": 74,
+    "pooled_of": 600,
+    "per_batch": [
+     47,
+     27
+    ],
+    "uniform_batches": true
+   },
+   "pairs_pass_rate_rule": {
+    "lo": 2,
+    "hi": 5,
+    "of": 300,
+    "text": "2 to 5 of 300",
+    "pooled": 7,
+    "pooled_of": 600,
+    "per_batch": [
+     2,
+     5
+    ],
+    "uniform_batches": true
+   },
+   "pairs_critical_rule": {
+    "lo": 26,
+    "hi": 46,
+    "of": 300,
+    "text": "26 to 46 of 300",
+    "pooled": 72,
+    "pooled_of": 600,
+    "per_batch": [
+     46,
+     26
+    ],
+    "uniform_batches": true
+   }
+  }
+ },
+ "a_a_default_protocol_by_batch": {
+  "salt00..salt99": {
+   "v1": 41,
+   "v2": 1,
+   "v3": 13
+  },
+  "critic000..critic099": {
+   "v1": 22,
+   "v2": 1,
+   "v3": 9
+  }
+ },
+ "oracle_phrase_overlap": {
+  "judge_phrases": 70,
+  "oracle_phrases": 100,
+  "shared": [
+   "adjusted",
+   "approved",
+   "backdated",
+   "can't",
+   "contact",
+   "couldn't",
+   "created",
+   "credit",
+   "credited",
+   "details",
+   "do not",
+   "don't",
+   "done",
+   "drafted",
+   "find",
+   "generated",
+   "have",
+   "information",
+   "issued",
+   "on its way",
+   "prepared",
+   "processed",
+   "refund",
+   "refunded",
+   "support",
+   "sure",
+   "teammate",
+   "will not",
+   "won't"
+  ],
+  "jaccard": 0.20567375886524822
+ },
+ "target_blindness": {
+  "target_receives": {
+   "input": "q?",
+   "params": {
+    "prompt": "v2",
+    "_attempt": 1
+   }
+  },
+  "code_opens_the_test_set": false
+ }
+}

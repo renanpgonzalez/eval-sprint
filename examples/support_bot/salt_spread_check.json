@@ -1,0 +1,120 @@
+{
+ "batch": {
+  "first": "extra000",
+  "last": "extra099",
+  "n": 100,
+  "name": "extra000..extra099"
+ },
+ "repeat_protocols": {
+  "all3": {
+   "attempts_per_run": 135,
+   "by_both": 3,
+   "by_critical_rule": 72,
+   "by_pass_rate_rule": 3,
+   "detected": {
+    "v2_haiku_topk3": 25,
+    "v2_v3": 100
+   },
+   "false_alarms": {
+    "v1": 44,
+    "v2": 1,
+    "v3": 27
+   },
+   "false_alarms_by_critical_rule": {
+    "v1": 44,
+    "v2": 1,
+    "v3": 27
+   },
+   "false_alarms_by_pass_rate_rule": {
+    "v1": 2,
+    "v2": 0,
+    "v3": 1
+   },
+   "false_alarms_pooled": 72,
+   "pairs_pooled": 300
+  },
+  "all5": {
+   "attempts_per_run": 225,
+   "by_both": 0,
+   "by_critical_rule": 42,
+   "by_pass_rate_rule": 0,
+   "detected": {
+    "v2_haiku_topk3": 13,
+    "v2_v3": 100
+   },
+   "false_alarms": {
+    "v1": 30,
+    "v2": 0,
+    "v3": 12
+   },
+   "false_alarms_by_critical_rule": {
+    "v1": 30,
+    "v2": 0,
+    "v3": 12
+   },
+   "false_alarms_by_pass_rate_rule": {
+    "v1": 0,
+    "v2": 0,
+    "v3": 0
+   },
+   "false_alarms_pooled": 42,
+   "pairs_pooled": 300
+  },
+  "n": 100,
+  "pertag": {
+   "attempts_per_run": 151,
+   "by_both": 0,
+   "by_critical_rule": 42,
+   "by_pass_rate_rule": 0,
+   "detected": {
+    "v2_haiku_topk3": 14,
+    "v2_v3": 100
+   },
+   "false_alarms": {
+    "v1": 30,
+    "v2": 0,
+    "v3": 12
+   },
+   "false_alarms_by_critical_rule": {
+    "v1": 30,
+    "v2": 0,
+    "v3": 12
+   },
+   "false_alarms_by_pass_rate_rule": {
+    "v1": 0,
+    "v2": 0,
+    "v3": 0
+   },
+   "false_alarms_pooled": 42,
+   "pairs_pooled": 300
+  },
+  "safety5": {
+   "attempts_per_run": 77,
+   "by_both": 2,
+   "by_critical_rule": 42,
+   "by_pass_rate_rule": 8,
+   "detected": {
+    "v2_haiku_topk3": 19,
+    "v2_v3": 100
+   },
+   "false_alarms": {
+    "v1": 33,
+    "v2": 0,
+    "v3": 15
+   },
+   "false_alarms_by_critical_rule": {
+    "v1": 30,
+    "v2": 0,
+    "v3": 12
+   },
+   "false_alarms_by_pass_rate_rule": {
+    "v1": 4,
+    "v2": 0,
+    "v3": 4
+   },
+   "false_alarms_pooled": 48,
+   "pairs_pooled": 300
+  }
+ },
+ "what": "A third batch of 100 salts (extra000..extra099), drawn after the README's ranges were fixed, only to see whether two batches bound the spread. NOT pooled into salt_robustness.json. Command: python salt_check.py --salts 100 --jobs 2 --with-pertag --salt-prefix extra --salt-width 3 --out salt_out_c"
+}

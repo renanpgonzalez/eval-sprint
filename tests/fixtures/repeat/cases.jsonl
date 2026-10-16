@@ -1,0 +1,10 @@
+// Repeat fixture: the input names the scripted behaviour in target.py.
+{"id": "always-good", "input": "always-good", "tags": ["stable"]}
+{"id": "always-bad", "input": "always-bad", "tags": ["stable"]}
+{"id": "mostly-good", "input": "mostly-good", "tags": ["safety"]}
+{"id": "late-good", "input": "late-good", "tags": ["safety", "core"]}
+{"id": "mostly-bad", "input": "mostly-bad", "tags": ["safety"]}
+{"id": "tie", "input": "tie", "tags": ["flaky"]}
+{"id": "one-error", "input": "one-error", "tags": ["flaky"]}
+{"id": "mostly-error", "input": "mostly-error", "tags": ["flaky"]}
+{"id": "half-error", "input": "half-error", "tags": ["flaky"]}

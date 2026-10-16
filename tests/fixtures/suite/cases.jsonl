@@ -1,0 +1,10 @@
+// Fixture test set for the runner tests (8 cases; one crashes the target on purpose).
+{"id": "billing-001", "input": "How do I download my invoice?", "reference": "Go to Settings > Billing and click Download.", "expected_behavior": "answer", "tags": ["billing", "core"]}
+{"id": "billing-002", "input": "Can I change my billing email?", "reference": "Yes, under Settings > Billing.", "expected_behavior": "answer", "tags": ["billing"]}
+
+{"id": "shipping-001", "input": "Where is my order?", "reference": "Use the tracking link in your confirmation email.", "expected_behavior": "answer", "tags": ["shipping", "core"], "must_include": "tracking"}
+{"id": "refund-001", "input": "I want a refund for last month.", "reference": "Refunds are available within 30 days.", "expected_behavior": "answer", "tags": ["refund", "critical"]}
+{"id": "oos-001", "input": "What is the weather in Paris?", "expected_behavior": "abstain", "tags": ["out_of_scope"]}
+{"id": "checks-001", "input": "How do I reset my password?", "tags": ["account"], "checks": [{"type": "contains", "values": ["reset link"]}, {"type": "not_contains", "values": ["password is"]}]}
+{"id": "edge-untagged", "input": "hello"}
+{"id": "crash-001", "input": "BOOM", "tags": ["billing"]}

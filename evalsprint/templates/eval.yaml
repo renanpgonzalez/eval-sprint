@@ -1,0 +1,341 @@
+# =============================================================================
+# eval.yaml - suite configuration for ONE LLM feature (starting point)
+# =============================================================================
+# `evalsprint init` writes this file into your repository, with the four files that go
+# with it (add `--ci` for the GitHub workflows; files that already exist are kept):
+#
+#   evals/eval.yaml            <- this file
+#   evals/rubric.yaml          <- what "good" means, as yes/no questions
+#   evals/cases.jsonl          <- the test set (starts as cases.example.jsonl)
+#   evals/target_adapter.py    <- the glue that calls the client's feature
+#   evals/requirements.txt     <- the pinned kit version (and what your adapter imports)
+#
+# Then, from the repository root:
+#   evalsprint describe -c evals/eval.yaml      # offline, no API key: checks the set and the judges
+#   JUDGE_PROVIDER=mock evalsprint run -c evals/eval.yaml --label smoke
+#                                               # offline too: canned answers and a placeholder judge (see OFFLINE below)
+#   evalsprint run      -c evals/eval.yaml --label baseline     # the real thing: needs ANTHROPIC_API_KEY
+#
+# OFFLINE: out of the box the target is `offline_stub` (canned text) and `JUDGE_PROVIDER=mock`
+# switches the LLM judge to `offline_judge` (passes every criterion unless the reply is empty). Both
+# are in target_adapter.py. That proves the pipeline runs on this machine and measures NOTHING:
+# never commit a baseline made that way. A run is marked `placeholder: true` when its target callable
+# is a function named `offline_stub`, or when any LLM judge has the provider `mock` (read after ${VAR}
+# and --set are expanded): `evalsprint baseline` refuses it, and the report and `compare` say so.
+#
+# All relative paths in this file (dataset, rubric, callables, runs_dir) are
+# resolved against the folder that contains this file, not the shell's cwd.
+#
+# Two conveniences that work anywhere in this file:
+#   ${VAR}            -> environment variable (empty string when unset)
+#   ${VAR:-default}   -> environment variable, or `default` when unset
+# A value that is *only* a variable is parsed as YAML, so ${N:-8} becomes the
+# integer 8 and ${FLAG:-true} becomes a boolean.
+#
+# Any key can be overridden per run without editing the file:
+#   evalsprint run -c evals/eval.yaml --set target.params.prompt=v2 --set concurrency=2
+#   evalsprint run -c evals/eval.yaml --set judges.0.value=600     # list items by index
+
+# Name shown in reports. Use the feature's name, e.g. "acme-support-bot".
+suite: acme-support-bot
+
+# The test set: one JSON object per line (see cases.example.jsonl).
+dataset: cases.jsonl
+
+# How many cases run at the same time. Raise it for speed, lower it if the
+# client's API or your LLM provider starts returning 429s. Results are always
+# written in dataset order, whatever the concurrency.
+concurrency: 4
+
+# Where runs are written: <runs_dir>/<run_id>/{results.jsonl,summary.json}.
+# Default is `runs/` next to this file. Add `runs/` to .gitignore, but keep the
+# committed baseline (evals/baseline/) out of the ignore rule.
+runs_dir: runs
+
+# -----------------------------------------------------------------------------
+# pass_rule: how the judges below combine into ONE verdict per case
+#   all          every judge that applies to the case must pass   (default)
+#   any          at least one judge that applies must pass
+#   <name>       only that judge decides (judges are matched by `name`)
+#   [n1, n2]     all of the listed judges must pass
+# A case whose target call failed (exception, timeout) never passes.
+# -----------------------------------------------------------------------------
+pass_rule: all
+
+# -----------------------------------------------------------------------------
+# target: the system under test
+#   callable   "file.py:function" (relative to this folder) or "package.module:function"
+#              The function is called as fn(case_input, params) and returns a
+#              string, or a dict {text, model, usage, cost_usd, latency_s, meta}.
+#              See target_adapter.py for four ready-made adapters (offline_stub is the default).
+#   params     free-form dict handed to your function on every call. Put
+#              everything you want to A/B here (prompt version, top_k, model...)
+#              so `--set target.params.<key>=<value>` can vary it.
+# The target never sees the reference answer, the tags or the checks.
+# -----------------------------------------------------------------------------
+target:
+  callable: target_adapter.py:offline_stub # offline placeholder: swap for call_function, call_http or call_llm before you measure anything
+  params:
+    model: "${TARGET_MODEL:-claude-sonnet-5-5}" # used for cost when the adapter does not return a model
+    prompt: v1
+    top_k: 4
+
+# -----------------------------------------------------------------------------
+# judges: everything that scores an output. Cheap deterministic checks first,
+# then the LLM judge for what code cannot decide.
+#
+# Common keys for every judge:
+#   name           unique name (defaults to the type). Shown in reports and used by pass_rule
+#   when_tags      only run on cases having at least one of these tags
+#   when_behavior  only run on cases whose expected_behavior is one of these
+#
+# Judge types
+#   contains       values: [..]  mode: any|all  case_insensitive: true
+#   not_contains   values: [..]  case_insensitive: true
+#   regex          pattern: "..." must_match: true  flags: "i" (i, s, m)
+#   max_chars      value: N
+#   min_chars      value: N
+#   json_valid     required_keys: [..]      (accepts ```json fenced output)
+#   exact_match    compares with the case's `reference`   case_insensitive: true
+#   custom         callable: "file.py:fn"   fn(case, output) -> bool | {passed, score, reasoning}
+#                  data_files: ["words.txt"]  (optional) files the function reads: they count as part of the judge
+#   llm            rubric-based LLM-as-judge (below)
+#
+# Per-case checks written inside cases.jsonl (`"checks": [...]`) run
+# automatically as one extra judge called `case_checks`. No entry needed here.
+# -----------------------------------------------------------------------------
+judges:
+  # Hard requirements: cheap, deterministic, zero model noise.
+  - type: max_chars
+    name: length
+    value: 1200 # a support answer should not be an essay
+
+  - type: not_contains
+    name: no_boilerplate_leak
+    values:
+      - as an ai language model
+      - system prompt
+
+  # Only for cases that expect a real answer: the reply must not be empty.
+  - type: min_chars
+    name: not_empty
+    value: 20
+    when_behavior: [answer]
+
+  # The LLM judge. Binary yes/no criteria from rubric.yaml, the verdict is
+  # computed in code from those answers (critical criteria must all pass).
+  - type: llm
+    name: quality
+    rubric: rubric.yaml
+    provider: "${JUDGE_PROVIDER:-anthropic}" # anthropic | openai | mock
+    model: "${JUDGE_MODEL:-claude-sonnet-5-5}" # use a model at least as strong as the target's
+    # provider_options are passed to the provider. Examples:
+    #   openai-compatible gateway (OpenRouter, vLLM, Ollama): {base_url: "http://localhost:11434/v1"}
+    #   offline tests (provider: mock):                        {responder: "sim.py:judge_responder"}
+    #   slow networks:                                         {timeout: 180, max_retries: 6}
+    # `responder` below only matters with JUDGE_PROVIDER=mock (the real providers ignore it): the
+    # placeholder judge of target_adapter.py. Delete the line once you never run the suite offline.
+    provider_options: {responder: "target_adapter.py:offline_judge"}
+    samples: 1 # 3 = run the judge 3 times and take the per-criterion majority (reports self-agreement)
+    max_tokens: 1500
+    # An output longer than max_output_chars is NOT sent to the judge: the case fails ("output exceeds
+    # max_output_chars"), at zero cost. Every other untrusted section (input, reference, context...) is
+    # cut at max_section_chars with a "[... truncated N chars ...]" marker. Both default to 20000.
+    # max_output_chars: 20000
+    # max_section_chars: 20000
+    # temperature: 0            # unset = provider default; set to 0 for max repeatability with samples: 1
+    # What the judge sees. `input`, `expected_behavior`, `reference` and `context`
+    # (from output.meta["context"], e.g. retrieved documents) are the defaults.
+    # Any other name is looked up in the case (unknown case fields end up in metadata):
+    include: [input, expected_behavior, reference, context, must_include]
+    # when_behavior: [answer, abstain, refuse]
+
+  # Example of a judge that only runs on a slice of the test set:
+  # - type: regex
+  #   name: cites_a_source
+  #   pattern: "https?://"
+  #   when_tags: [needs_citation]
+
+# -----------------------------------------------------------------------------
+# pricing: only needed when a model is missing from evalsprint/pricing.yaml or a
+# price changed. USD per 1M tokens. Entries are merged with the built-in table;
+# ids are matched exactly, then by longest prefix (so "claude-haiku-4-5-20251001"
+# uses the "claude-haiku-4-5" entry). Confirm prices with the vendor before you
+# quote a cost to a client.
+# -----------------------------------------------------------------------------
+# pricing:
+#   my-finetuned-model: {input: 3.00, output: 12.00}
+#   claude-sonnet-5-5:  {batch: true}      # halves the cost if you use the batch API
+
+# -----------------------------------------------------------------------------
+# repeat: run every selected case N times and let the MAJORITY decide (a tie
+# counts as a fail). It damps model noise, and the summary reports `flip_rate`,
+# the share of repeated cases whose attempts disagreed: your real noise level
+# (`evalsprint noise RUN` turns it into "about" false-alarm and detection rates of the whole gate
+# for YOUR suite and protocol; it needs at least 20 repeated cases, and this scaffold has 10: add
+# cases first).
+# Costs N times as much for the selected cases (target calls and judge calls).
+#
+#   repeat:
+#     n: 3                  # every case runs 3 times
+#     per_tag: {safety: 5}  # ... except the cases tagged safety, which run 5 times
+#
+# A case runs as many times as the LARGEST per_tag count among its tags, else `n`. `per_tag` is
+# optional and also works below `n` (`{n: 5, per_tag: {cheap: 1}}` runs the cheap cases once);
+# `evalsprint run --repeat N` sets `n` and keeps `per_tag`. The older spelling
+# `{n: 5, tags: [safety]}` still works and means `{n: 1, per_tag: {safety: 5}}`; naming `tags` and
+# `per_tag` together is a configuration error.
+#
+# ON BY DEFAULT here (n: 3), because a suite of fewer than 150 cases is too small to tell noise from
+# a regression on a single attempt. At 5% noise per attempt and 45 cases, an unchanged system is
+# blocked in 10.6% of runs with one attempt and 0.3% with a majority of 3, and a real 10 point
+# drop is caught 66.6% of the time against 81.6% (exact, independent attempts: github/README.md, section 9).
+# From 150 cases on, one attempt keeps false alarms at or under 5% at 5% noise (4.9% at 10%), IF the
+# target does not crash: a target that crashes on 1% of the cases doubles the false alarms at 200
+# cases (4.0% -> 8.0%). `target_retries` (below) and `repeat` are what absorb that. Between 60 and
+# 149 cases the v0.1 rule had a lower false alarm and a higher detection of a 10 point drop at 84 of
+# the 90 sizes at 5% noise (every size but 60-62 and 78-80; at 10% noise v0.2 is the stricter rule and
+# blocks less often): the current rule is one smooth rule without a cliff at 150, not a better one at
+# every size. Its false alarm peaks at 12.3% (n = 54, 5% noise) and 15.1% (10% noise).
+#
+# Critical tags: one pass -> fail flip on a critical case blocks the PR and it is not statistical.
+# With 8 critical cases and 5% noise per attempt an unchanged system is blocked about 32% of the
+# time with a single attempt, 5.6% with a majority of 3 and 0.92% with a majority of 5, while a
+# critical case that really broke (fails 80% of its attempts) is still caught 94% of the time with
+# 5. `compare` warns when critical cases ran fewer than 5 times.
+#
+# Do not put `n: 5` on every case just to fix the critical rule: it pays 5x on the whole suite.
+# Raise only the critical cases. Total false alarm (pass-rate rule and critical rule together, exact)
+# at 45 cases, 8 of them critical, 5% noise:
+#   repeat: {n: 3}                                  5.79%   (the critical rule alone is 5.6%)
+#   repeat: {n: 3, per_tag: {<critical tag>: 5}}    1.11%   <- recommended: critical cases 5 times, the rest 3
+#   repeat: {n: 5}                                  0.92%   (5 times on every case)
+#
+# The repeat setting is part of the baseline: a pull request that changes it is blocked
+# (gate.allow_repeat_change), because a bigger majority vote is an easier gate.
+# -----------------------------------------------------------------------------
+repeat:
+  n: 3
+  # per_tag: {safety: 5}  # uncomment once your critical cases carry a tag; use the tag names you put in gate.critical_tags
+
+# -----------------------------------------------------------------------------
+# target_retries: a target call that raises is called again up to this many times inside the
+# run (default 1, at most 5, 0 switches it off) before it counts as a crash. It absorbs a transient
+# 429 or timeout; a crash that survives the retry is still a failure for the gate. Retried calls are
+# paid and counted in the cost, and the summary reports `target_retries` and `n_target_retries`. A retry
+# hides a transient crash from the pass rate: the gate blocks a changed value (see gate: below). A target that is NOT
+# idempotent (it sends a message, writes a record, charges something) must have target_retries: 0,
+# or one crash can make the same call twice.
+# -----------------------------------------------------------------------------
+# target_retries: 1
+
+# -----------------------------------------------------------------------------
+# gate: the regression rules `evalsprint compare BASELINE CANDIDATE` applies in
+# CI (exit code 1 = regression). Every key is optional; the values below ARE the
+# defaults (a test keeps this file and the code in step). Agree the numbers with
+# the client during the sprint, then commit them.
+#
+# In the CI templates this block is read from the BASE branch, never from the
+# pull request: changing it in a PR does not change what that PR is judged by.
+# Changes to it need a reviewer (see CODEOWNERS.example). The comparison also runs in a job
+# that does not execute the pull request's code (github/README.md, section 4).
+#
+# The candidate is flagged when ANY rule trips:
+#   1. pass rate fell too much, measured on the cases that exist in both runs with the same
+#      content and have a verdict in the baseline ("paired" cases; a crash of the target on a
+#      case that passed in the baseline counts as a failure here, see rule 6).
+#        auto (default)  ONE rule for every suite size. With n paired cases, b = cases that went
+#                        pass -> fail and c = fail -> pass, it trips when BOTH hold:
+#                          net loss b - c >= max(3, ceil(n / 50))   (at least 3 cases; 2 points from 150 cases on)
+#                          one-sided exact McNemar p < alpha(n) = 0.0575 + 0.1925 / (1 + (n / 85)^4.5)
+#                        alpha falls smoothly from 0.25 (tiny suites have little data) to 0.0575.
+#                        There is no switch and no cliff at any n. The comparison reports the rule
+#                        it applied: gate_mode, effective_max_pass_rate_drop, effective_alpha,
+#                        effective_min_net_loss.
+#        a number        a fixed absolute limit (0.03 = 3 points); with require_significance: true
+#                        the McNemar test must agree too (alpha below)
+#        null            rule 1 off
+#      What a set of N cases can catch is in github/README.md (section 9): at 5% noise per attempt,
+#      45 cases is a smoke test (1 false alarm in 9 runs, a 10 point drop caught 2 times in 3), and
+#      the committed baseline is ONE noisy draw: how often later PRs are blocked depends on how
+#      lucky it was (`evalsprint noise RUN` prints that tail for your suite and protocol, from at least 20 repeated cases).
+#   2. pass rate is below min_pass_rate (absolute floor), on the whole candidate run
+#      AND on the cases that also exist in the baseline (added cases cannot lift it)
+#   3. any case tagged with one of critical_tags went from pass to fail, a crash of
+#      the target included (not statistical: repeat those cases, see `repeat:` above)
+#   4. mean cost per case grew by more than max_cost_increase_pct
+#   5. p95 latency grew by more than max_p95_latency_increase_pct
+#   6. the candidate's error rate (target crashes, judge failures) is above
+#      max_error_rate, counted per case AND per attempt (a repeated case whose majority
+#      passed can hide a crashed attempt), on the whole run or on the cases that also
+#      exist in the baseline. That run is UNHEALTHY: `run` exits 3, and the CI workflow
+#      reports "eval infrastructure error", not a quality regression. Errors are handled by
+#      kind when two runs are compared: a target crash on a case that passed in the
+#      baseline counts as a FAILURE (rules 1 and 3); a judge failure, or an error
+#      already in the baseline, is left out and named in the comment. A critical
+#      case that passed in the baseline whose JUDGE errored in the candidate is a
+#      regression reason too, because it could not be verified. A target crash in ONE attempt of
+#      a repeated case that passed in the baseline is a warning naming the case, even if
+#      the majority still passed (a flaky crash). Retry provider errors inside your adapter.
+#   7. more than max_removed_cases baseline cases are missing from the candidate,
+#      or more than max_changed_cases changed under the same id (any field except
+#      the id counts: input, reference, checks, tags, must_include, metadata...).
+#      Deleting or editing the cases you fail is the cheapest way to pass; the
+#      default is 0.
+#   8. the judges changed: a different judge block, rubric text, pass_rule, the SOURCE of a
+#      `custom` judge's file or any of its `data_files` (summary.judges_sha). A judge that got
+#      more lenient makes every pass rate look better, so this is a regression reason unless
+#      allow_judge_changes is true (then a warning). Not covered: the code a custom judge imports
+#      from elsewhere, the code of the target (`run --resume` does check it, the gate does not),
+#      and a judge model that changes behind the same model name.
+#   9. only with require_calibration: true: the LLM judge is not calibrated, its
+#      calibration decision is not usable or trustworthy (inconclusive,
+#      not_trustworthy and insufficient_data all fail), or the lower bound of its
+#      WEIGHTED kappa interval (the one `evalsprint calibrate` decides on) is below
+#      min_judge_kappa. Without require_calibration these are warnings in the PR
+#      comment. (`calibrate` releases a judge only from 40 labels on.) A
+#      calibration.json from an older evalsprint has no weighted kappa: it is read
+#      as unweighted, marked "legacy" and warned about; re-run `calibrate`.
+#  10. the evaluation protocol changed: a different `repeat` (n or per_tag; the old `tags`
+#      spelling counts as the same protocol as its per_tag form) between baseline and candidate is
+#      a regression reason unless allow_repeat_change is true (then a warning). A different
+#      target_retries is one too, unless allow_target_retries_change is true: a retry hides a
+#      transient crash from the pass rate (retry_share_warn warns when the candidate retried
+#      10 percentage points more of its calls than the baseline, a weak warning for small
+#      increases: against a baseline that retried 5% of its calls it fires in 11 of 100
+#      comparisons when the candidate's calls crash 10% of the time). A different
+#      evalsprint version, patch included, is a warning, or a reason with
+#      require_same_kit_version: true (pin the kit in evals/requirements.txt and bump it in a
+#      reviewed pull request that also refreshes the baseline).
+#
+# Warnings that never trip the gate: a NON-critical tag whose pass rate fell by at least
+# tag_drop_warning_pp points on at least tag_drop_min_cases paired cases (a big drop in one
+# slice hides inside a small overall change; null switches it off; below 20 cases a few
+# flipped verdicts are chance: with 10 tags of 10 cases and 5% noise a no-change comparison
+# raised at least one spurious warning 43% of the time), an uncalibrated judge, a calibration
+# made for another judge configuration, a small test set, flaky crashes, a baseline that is a
+# placeholder run, a judge whose custom source could not be hashed.
+#
+# An explicit gate is authoritative: `compare --gate-config` or `-c` never mixes in
+# the gate stored in the candidate run's own summary.json.
+# -----------------------------------------------------------------------------
+gate:
+  max_pass_rate_drop: auto
+  alpha: 0.05 # only used with a NUMBER in max_pass_rate_drop plus require_significance: true (auto has its own alpha(n))
+  require_significance: false # only used when max_pass_rate_drop is a number
+  min_pass_rate: null # e.g. 0.80 once you know the baseline
+  critical_tags: [] # e.g. [safety, billing]
+  max_cost_increase_pct: null # e.g. 25
+  max_p95_latency_increase_pct: null # e.g. 50
+  max_error_rate: 0.05
+  max_removed_cases: 0
+  max_changed_cases: 0
+  min_judge_kappa: 0.6
+  require_calibration: false
+  allow_judge_changes: false # true: a changed judge, rubric or custom judge code is a warning instead of a regression
+  allow_repeat_change: false # true: a changed `repeat` is a warning instead of a regression
+  allow_target_retries_change: false # true: a changed `target_retries` is a warning instead of a regression
+  retry_share_warn: 0.10 # warn when the candidate retried this much more of its target calls (a share, 0 to 1) than the baseline (null: never)
+  require_same_kit_version: false # true: a different evalsprint version (patch included) is a regression reason (else a warning)
+  tag_drop_warning_pp: 20 # warn when a non-critical tag's pass rate drops by this many points (null: never)
+  tag_drop_min_cases: 20 # ... and the tag has at least this many paired cases (fewer: a few flipped cases are chance)

@@ -1,0 +1,15 @@
+suite: fixture-repeat
+dataset: cases.jsonl
+concurrency: 4
+target:
+  callable: target.py:answer
+  params:
+    model: claude-haiku-4-5
+judges:
+  - type: contains
+    name: says_good
+    values: ["good"]
+gate:
+  max_error_rate: 1.0
+tag_groups:
+  kind: [stable, safety]

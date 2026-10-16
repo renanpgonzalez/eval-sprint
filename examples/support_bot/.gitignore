@@ -1,0 +1,5 @@
+# output of run_demo.py
+demo_out/
+# output of salt_check.py
+salt_out/
+__pycache__/

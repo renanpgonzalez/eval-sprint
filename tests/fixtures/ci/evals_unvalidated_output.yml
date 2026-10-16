@@ -1,0 +1,720 @@
+# FROZEN NEGATIVE CONTROL, NOT A TEMPLATE. This is evalsprint/templates/github/evals.yml exactly as it was before the C16 fix
+# (release candidate of v0.2.0): the compare job copies the exit code that the PR's job handed over, byte for byte, into its own
+# $GITHUB_OUTPUT. tests/test_templates.py (OutputInjectionTests) replays the cycle-3 critic's injections H2 and H4 against it and
+# they turn a real regression into a pass; against the shipped workflow they do not. Without this control the injection test
+# would pass just as well if the attack never worked.
+# Eval Sprint: LLM regression gate for pull requests.
+#
+# Copy to .github/workflows/evals.yml in your repository and edit the lines marked EDIT.
+# On every pull request this workflow first checks whether LLM code changed (EVAL_PATHS below); if not it
+# skips the paid run and the gate passes with a note. When LLM code changed it:
+#   1. reads the gate settings, the baseline and the kit pin from the pull request's BASE branch, never from
+#      the PR, in jobs that run none of the PR's code;
+#   2. runs the eval suite on the PR (the "candidate" run) in ONE job, the only one that runs the PR's code,
+#      and hands the resulting files to the next job as an artifact;
+#   3. compares the candidate with the baseline in a separate job that checks out the base branch only and
+#      installs the kit from the base branch's evals/requirements.txt, so code in the pull request cannot
+#      reach the comparison, the gate settings, the baseline or the kit that judges it;
+#   4. writes the verdict to the job summary, to ONE sticky PR comment and to an artifact (with the HTML report);
+#   5. fails the "LLM evals gate" check on a regression, a configuration error or an unhealthy run,
+#      each with its own message.
+# What the split does NOT do: the candidate results still come from the pull request's own code, so a change
+# that fakes its results is not caught by the gate (code review is). Setup, secrets, branch protection and what
+# the gate can and cannot promise: see README.md next to this file.
+#
+# Jobs (each one holds only the permissions it needs):
+#   check-secrets  no permissions   is an API key available? (not for fork PRs or Dependabot)
+#   changes        contents: read   did a file matching EVAL_PATHS change? No API keys, runs no PR code
+#   trusted        contents: read   reads the base branch (baseline present? pinned commit). No API keys, no PR code
+#   evals          contents: read   runs untrusted PR code with the API keys and uploads the candidate run; can NOT write to the PR
+#   compare        contents: read   base branch only: installs the kit from it, downloads the candidate, compares, decides. No API keys, no PR code
+#   comment        pull-requests    posts the sticky comment; no checkout, no API keys, runs no PR code
+#   gate           none             the verdict: mark THIS job ("LLM evals gate") as the required check
+
+name: LLM evals
+
+on:
+  # No `paths:` filter on purpose. With "LLM evals gate" required in branch protection, a pull request
+  # that a filter skips never receives the status and waits forever. The `changes` job below does the
+  # filtering instead and the gate job reports success for a pull request that touches no LLM code.
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}  # jobs below ask for what they need; nothing is granted by default
+
+env:
+  # EDIT: "true" makes the gate FAIL when the evals cannot run because no API key is available
+  # (pull requests from forks, Dependabot PRs without a Dependabot secret, a missing secret). "false" keeps the check green but shows a
+  # warning annotation and a job-summary note: nothing was verified, a human has to decide.
+  FAIL_WITHOUT_SECRETS: "false"
+
+  # EDIT: everything that can change what your LLM feature outputs, one glob per line. `*` stays inside a
+  # folder, `**` crosses folders, `?` is one character; anything else is literal (no `!` negation, no `[a-z]` sets).
+  # A pull request that changes none of these skips the paid run; the gate still reports success, with a note.
+  # Always treated as relevant, whatever you write here: evals/** and the two eval workflow files. (A pull
+  # request that edits THIS list is a workflow change: keep the workflow files under CODEOWNERS.)
+  EVAL_PATHS: |
+    prompts/**
+    src/llm/**
+
+  # EDIT: "true" makes the gate FAIL when the base branch has no committed baseline (evals/baseline/).
+  # Leave it "false" ONLY until the first baseline has been merged, then set it to "true" (README, section 3).
+  # Independently of this flag the gate also fails when the base branch had a baseline in its history and
+  # lost it (a merged pull request deleted it): a missing reference must never turn the gate off silently.
+  REQUIRE_BASELINE: "false"
+
+# A newer push to the same PR supersedes the run in flight, so you never pay for stale evals.
+concurrency:
+  group: llm-evals-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-secrets:
+    name: Check API keys
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    outputs:
+      available: ${{ steps.keys.outputs.available }}
+      reason: ${{ steps.keys.outputs.reason }}
+    env:
+      # EDIT: keep the providers your eval.yaml uses (target and judges).
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
+      # Dependabot pull requests come from this repository but their workflows only see Dependabot secrets,
+      # not the Actions secrets above.
+      IS_DEPENDABOT: ${{ github.actor == 'dependabot[bot]' }}
+    steps:
+      - name: Look for an API key
+        id: keys
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$OPENAI_API_KEY" ]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            if [ "$IS_FORK" = "true" ]; then
+              echo "reason=fork" >> "$GITHUB_OUTPUT"
+            elif [ "$IS_DEPENDABOT" = "true" ]; then
+              echo "reason=dependabot" >> "$GITHUB_OUTPUT"
+            else
+              echo "reason=missing-secret" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "reason=" >> "$GITHUB_OUTPUT"
+          fi
+
+  changes:
+    name: Did LLM code change?
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read  # nothing else; no API keys are visible here and no PR code runs
+    outputs:
+      relevant: ${{ steps.diff.outputs.relevant }}
+    env:
+      EVENT_NAME: ${{ github.event_name }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2  # the merge commit that a pull request is checked out as, and both of its parents
+          persist-credentials: false  # this job never pushes; keep the token out of .git/config
+
+      - name: Compare the changed files with EVAL_PATHS
+        id: diff
+        run: |
+          python3 - << 'PY'
+          import os
+          import re
+          import subprocess
+
+
+          def output(key, value):
+              with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+                  fh.write(f"{key}={value}\n")
+
+
+          def regex(glob):
+              # Like the patterns of GitHub's `paths:` filter: `*` stays inside a folder, `**` crosses folders.
+              if glob.endswith("/"):
+                  glob += "**"
+              out, i = [], 0
+              while i < len(glob):
+                  if glob.startswith("**/", i):
+                      out.append("(?:.*/)?")
+                      i += 3
+                  elif glob.startswith("**", i):
+                      out.append(".*")
+                      i += 2
+                  elif glob[i] == "*":
+                      out.append("[^/]*")
+                      i += 1
+                  elif glob[i] == "?":
+                      out.append("[^/]")
+                      i += 1
+                  else:
+                      out.append(re.escape(glob[i]))
+                      i += 1
+              return re.compile("".join(out))
+
+
+          def git(*args):
+              return subprocess.run(["git", *args], check=True, capture_output=True, text=True).stdout
+
+
+          if os.environ["EVENT_NAME"] != "pull_request":
+              print("Manual run: the evals are always run.")
+              output("relevant", "true")
+              raise SystemExit(0)
+
+          always = ["evals/**", ".github/workflows/evals.yml", ".github/workflows/evals-baseline.yml"]
+          listed = [line.strip() for line in os.environ.get("EVAL_PATHS", "").splitlines()]
+          extra = [line for line in listed if line and not line.startswith("#")]
+          if not extra:
+              print("::warning title=EVAL_PATHS is empty::Only changes under evals/ and to the eval workflows start the evals. List the folders that hold your prompts and LLM code.")
+          matchers = [regex(p) for p in always + extra]
+
+          # A pull request is checked out as a merge commit: parent 1 is the base branch, parent 2 the PR head.
+          # If HEAD is anything else the diff would not show the whole change, so run the evals (fail safe).
+          parents = git("rev-list", "--parents", "-n", "1", "HEAD").split()[1:]
+          if len(parents) != 2:
+              print(f"::warning title=Cannot tell what changed::HEAD is not a merge commit (it has {len(parents)} parent(s)), so the changed files cannot be listed reliably. Running the evals.")
+              output("relevant", "true")
+              raise SystemExit(0)
+
+          changed = [f for f in git("diff", "--name-only", "--no-renames", "-z", "HEAD^1", "HEAD").split("\0") if f]
+          hits = [f for f in changed if any(m.fullmatch(f) for m in matchers)]
+          print(f"{len(changed)} file(s) changed; {len(hits)} match EVAL_PATHS.")
+          for name in hits[:20]:
+              print(f"  relevant: {name}")
+          output("relevant", "true" if hits else "false")
+          PY
+  trusted:
+    name: Read the base branch
+    needs: [check-secrets, changes]
+    if: needs.check-secrets.outputs.available == 'true' && needs.changes.outputs.relevant == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read  # nothing else; no API keys are visible here and no code of the pull request runs
+    outputs:
+      available: ${{ steps.base.outputs.available }}
+      missing: ${{ steps.base.outputs.missing }}
+      missing_why: ${{ steps.base.outputs.missing_why }}
+      base_sha: ${{ steps.base.outputs.base_sha }}
+    env:
+      # The branch whose gate settings, baseline and kit pin are trusted. For a manual run: the default branch.
+      BASE_REF: ${{ github.base_ref || github.event.repository.default_branch }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.base_ref || github.event.repository.default_branch }}  # the BASE branch: never the pull request
+          fetch-depth: 0  # the history of evals/baseline is read below, with no later network access
+          persist-credentials: false  # this job never pushes; keep the token out of .git/config
+
+      - name: Look for the baseline on the base branch
+        id: base
+        run: |
+          # Everything the gate is judged by comes from this checkout of the base branch; the compare job checks out
+          # exactly this commit. The PR's own copy of evals/eval.yaml (gate:) and evals/baseline/ is never read.
+          base_sha="$(git rev-parse --verify HEAD)"
+          echo "base_sha=${base_sha}" >> "$GITHUB_OUTPUT"
+
+          if [ -f evals/eval.yaml ] && [ -f evals/baseline/summary.json ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "missing=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # No usable baseline on the base branch. Is that the very first install, or did it get lost?
+          echo "available=false" >> "$GITHUB_OUTPUT"
+          last="$(git log -n 1 --format=%h HEAD -- evals/baseline)"
+          if [ -n "$last" ]; then
+            echo "missing=true" >> "$GITHUB_OUTPUT"
+            echo "missing_why=the history of ${BASE_REF} shows that evals/baseline/ existed (last touched by commit ${last}) and it is gone or incomplete now" >> "$GITHUB_OUTPUT"
+            echo "::error title=Baseline missing on the base branch::${BASE_REF} has no usable evals/eval.yaml and evals/baseline/summary.json, but its history shows a baseline existed (commit ${last}). Failing instead of skipping the comparison."
+          elif [ "$REQUIRE_BASELINE" = "true" ]; then
+            echo "missing=true" >> "$GITHUB_OUTPUT"
+            echo "missing_why=REQUIRE_BASELINE is \"true\" in this workflow" >> "$GITHUB_OUTPUT"
+            echo "::error title=Baseline missing on the base branch::${BASE_REF} has no usable evals/eval.yaml and evals/baseline/summary.json, and REQUIRE_BASELINE is true."
+          else
+            echo "missing=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=No baseline on the base branch::${BASE_REF} has no evals/eval.yaml and evals/baseline/summary.json yet, and its history shows none before, so there is nothing trusted to compare with. This looks like the pull request that installs the evals; the gate is not enforced until the first baseline is merged. Then set REQUIRE_BASELINE to true."
+          fi
+
+  evals:
+    name: Run evals (PR code)
+    needs: [check-secrets, changes, trusted]
+    # A missing baseline fails the gate in the compare job without paying for a run.
+    if: needs.check-secrets.outputs.available == 'true' && needs.changes.outputs.relevant == 'true' && needs.trusted.outputs.missing != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30  # EDIT: safety net against runaway API spend
+    permissions:
+      contents: read  # nothing else: this job runs the PR's code next to your API keys
+    outputs:
+      run_exit_code: ${{ steps.run.outputs.exit_code }}
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v5  # a pull request checks out the merge of the PR into the base branch
+        with:
+          persist-credentials: false  # this job never pushes, and the PR's code runs in it: keep the token out of .git/config
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: evals/requirements.txt
+
+      - name: Install dependencies
+        # This installs what the PR asks for (its evals/requirements.txt): the candidate is produced by the PR's own code.
+        # The comparison is done elsewhere, with the kit pinned on the base branch (job `compare`).
+        # A private kit repository needs a read-only token in the EVALSPRINT_READ_TOKEN secret (see README.md).
+        env:
+          EVALSPRINT_READ_TOKEN: ${{ secrets.EVALSPRINT_READ_TOKEN }}
+        run: |
+          if [ -n "$EVALSPRINT_READ_TOKEN" ]; then
+            key="url.https://x-access-token:${EVALSPRINT_READ_TOKEN}@github.com/.insteadOf"
+            git config --global "$key" "https://github.com/"
+            trap 'git config --global --unset-all "$key" || true' EXIT  # the token must not outlive the install
+          fi
+          pip install -r evals/requirements.txt
+
+      - name: Run evals on this change
+        id: run
+        run: |
+          set +e  # capture the exit code instead of failing here; the compare job turns it into a verdict
+          evalsprint run -c evals/eval.yaml --label "pr-${PR_NUMBER:-manual}" --out runs/candidate --no-report
+          code=$?
+          set -e
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Build the HTML report of the candidate alone
+        # Only when the base branch has no baseline yet (the first install): the compare job builds the report with
+        # the baseline otherwise. A convenience; it must never hide anything.
+        if: ${{ needs.trusted.outputs.available != 'true' && (steps.run.outputs.exit_code == '0' || steps.run.outputs.exit_code == '3') }}
+        continue-on-error: true
+        run: evalsprint report runs/candidate -o runs/candidate/report.html
+
+      - name: Upload the candidate run
+        # The compare job downloads this and nothing else from here. The files are data: results.jsonl, summary.json.
+        if: ${{ !cancelled() && (steps.run.outputs.exit_code == '0' || steps.run.outputs.exit_code == '3') }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: eval-candidate-${{ github.event.pull_request.number || 'manual' }}
+          path: runs/candidate
+          if-no-files-found: error
+          retention-days: 14
+          overwrite: true
+
+  compare:
+    name: Compare with the baseline (base branch)
+    needs: [trusted, evals]
+    # Always decides once the base branch was read, even when `evals` was skipped (missing baseline) or failed in a setup step.
+    if: ${{ !cancelled() && needs.trusted.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read  # nothing else; no API keys are visible here and no code of the pull request runs
+    outputs:
+      verdict: ${{ steps.verdict.outputs.verdict }}
+      exit_code: ${{ steps.verdict.outputs.exit_code }}
+    env:
+      RUN_CODE: ${{ needs.evals.outputs.run_exit_code }}
+      EVALS_RESULT: ${{ needs.evals.result }}
+      TRUSTED_AVAILABLE: ${{ needs.trusted.outputs.available }}
+      TRUSTED_MISSING: ${{ needs.trusted.outputs.missing }}
+      MISSING_WHY: ${{ needs.trusted.outputs.missing_why }}
+      BASE_SHA: ${{ needs.trusted.outputs.base_sha }}
+      BASE_REF: ${{ github.base_ref || github.event.repository.default_branch }}
+    steps:
+      - name: Plan
+        id: plan
+        run: |
+          # `files`: the eval run left a candidate to download (exit code 0 or 3).
+          # `kit`: the base branch has a baseline, so there is something to compare with or to build a report against.
+          files=false
+          kit=false
+          if [ "$RUN_CODE" = "0" ] || [ "$RUN_CODE" = "3" ]; then
+            files=true
+            [ "$TRUSTED_AVAILABLE" = "true" ] && kit=true
+          fi
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+          echo "kit=$kit" >> "$GITHUB_OUTPUT"
+
+      - name: Download the candidate run
+        # Data only: results.jsonl and summary.json written by the PR's run. Nothing in it is executed; the kit parses it.
+        id: download
+        if: steps.plan.outputs.files == 'true'
+        uses: actions/download-artifact@v6
+        with:
+          name: eval-candidate-${{ github.event.pull_request.number || 'manual' }}
+          path: ${{ runner.temp }}/eval-out/candidate
+
+      - uses: actions/checkout@v5
+        if: steps.plan.outputs.kit == 'true'
+        with:
+          ref: ${{ needs.trusted.outputs.base_sha }}  # exactly the commit the `trusted` job read: the base branch, never the pull request
+          persist-credentials: false  # nothing is pushed from here
+
+      - uses: actions/setup-python@v6
+        if: steps.plan.outputs.kit == 'true'
+        with:
+          python-version: "3.12"
+          # No `cache: pip` on purpose: a pip cache written by the evals job (PR code) must never be restored here.
+
+      - name: Install the kit from the base branch
+        id: install
+        # EDIT: pin the kit in evals/requirements.txt so gate behaviour only changes when you decide it does.
+        # This is the BASE branch's file: a pull request that bumps or swaps the kit changes the candidate run, not this comparison.
+        # A private kit repository needs a read-only token in the EVALSPRINT_READ_TOKEN secret (see README.md).
+        if: steps.plan.outputs.kit == 'true'
+        env:
+          EVALSPRINT_READ_TOKEN: ${{ secrets.EVALSPRINT_READ_TOKEN }}
+        run: |
+          if [ -n "$EVALSPRINT_READ_TOKEN" ]; then
+            key="url.https://x-access-token:${EVALSPRINT_READ_TOKEN}@github.com/.insteadOf"
+            git config --global "$key" "https://github.com/"
+            trap 'git config --global --unset-all "$key" || true' EXIT  # the token must not outlive the install
+          fi
+          pip install -r evals/requirements.txt
+
+      - name: Compare with the baseline from the base branch
+        id: compare
+        # exit 3 (unhealthy run) skips the comparison: errors are not a quality signal.
+        if: steps.plan.outputs.kit == 'true' && env.RUN_CODE == '0'
+        run: |
+          set +e
+          out="$RUNNER_TEMP/eval-out"
+          mkdir -p "$out"
+          evalsprint compare evals/baseline "$out/candidate" --gate-config evals/eval.yaml --md "$out/gate.md" --json "$out/gate.json"
+          code=$?
+          set -e
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Decide the verdict
+        id: verdict
+        if: ${{ !cancelled() }}
+        env:
+          COMPARE_CODE: ${{ steps.compare.outputs.exit_code }}
+          FILES: ${{ steps.plan.outputs.files }}
+          DOWNLOAD_OUTCOME: ${{ steps.download.outcome }}
+        run: |
+          # Exit codes of evalsprint: 0 ok, 1 regression, 2 usage or config error, 3 unhealthy run.
+          out="$RUNNER_TEMP/eval-out"
+          mkdir -p "$out"
+          gate="$out/gate.md"
+          job='Run evals (PR code)'
+          if [ "$TRUSTED_MISSING" = "true" ]; then
+            code=2
+            source="the base-branch read"
+            job='Read the base branch'
+          elif [ -z "$RUN_CODE" ]; then
+            code=255
+            source="a setup step of the evals job (checkout, dependency install or the run itself; its result was '${EVALS_RESULT:-unknown}')"
+          elif [ "$FILES" = "true" ] && [ "$DOWNLOAD_OUTCOME" != "success" ]; then
+            code=255
+            source="the download of the candidate run (the evals job did not upload it)"
+            job='Compare with the baseline (base branch)'
+          elif [ "$RUN_CODE" != "0" ]; then
+            code="$RUN_CODE"
+            source='`evalsprint run`'
+          elif [ "$TRUSTED_AVAILABLE" != "true" ]; then
+            code=bootstrap
+            source='`evalsprint run`'
+          elif [ -n "$COMPARE_CODE" ]; then
+            code="$COMPARE_CODE"
+            source='`evalsprint compare`'
+            job='Compare with the baseline (base branch)'
+          else
+            code=255
+            source="a setup step of the compare job (base checkout or kit install)"
+            job='Compare with the baseline (base branch)'
+          fi
+          case "$code" in
+            0) verdict=pass ;;
+            1) verdict=regression ;;
+            2) verdict=config_error ;;
+            3) verdict=unhealthy ;;
+            bootstrap) verdict=bootstrap ;;
+            *) verdict=error ;;
+          esac
+          [ "$TRUSTED_MISSING" = "true" ] && verdict=baseline_missing
+          # Only `compare` can say "regression"; a 1 from `run` (for example a crash with --debug) is an error.
+          if [ "$verdict" = regression ] && [ "$source" != '`evalsprint compare`' ]; then
+            verdict=error
+          fi
+
+          case "$verdict" in
+            pass | regression)
+              if [ ! -s "$gate" ]; then
+                printf '## Eval comparison did not complete\n\n`evalsprint compare` exited with code %s before writing a result. See the job log of *%s*.\n' "$code" "$job" > "$gate"
+              fi
+              ;;
+            config_error)
+              printf '## Eval gate: configuration error\n\n%s exited with code 2. This is a setup problem, **not a quality regression**: a misspelled key in `eval.yaml` or in its `gate:` block, a missing baseline, a missing API key or an unreadable test set. See the job log of *%s*.\n' "$source" "$job" > "$gate"
+              ;;
+            unhealthy)
+              {
+                printf '## Eval infrastructure error, not a quality regression\n\n'
+                printf 'The eval run itself was unhealthy, so its pass rate says nothing about quality and was **not** compared with the baseline. Re-run the job once the cause is fixed (provider outage, expired key, rate limits).\n\n'
+                CAND="$out/candidate" python3 - << 'PY'
+          import json
+          import os
+
+          try:
+              with open(os.path.join(os.environ["CAND"], "summary.json"), encoding="utf-8") as fh:
+                  s = json.load(fh)
+          except (OSError, ValueError):
+              s = {}
+
+
+          def show(key):
+              value = s.get(key)
+              return "n/a" if value is None else value
+
+
+          rate = s.get("error_rate")
+          print("| Errors | Count |")
+          print("|---|---:|")
+          print(f"| Cases with an error | {show('n_errors')} of {show('n_cases')} |")
+          print(f"| Target errors (the system under test) | {show('n_target_errors')} |")
+          print(f"| Judge errors (the grader) | {show('n_judge_errors')} |")
+          print(f"| Error rate | {'n/a' if rate is None else format(rate, '.1%')} |")
+          PY
+              } > "$gate"
+              ;;
+            baseline_missing)
+              printf '## Eval gate: baseline missing on the base branch\n\n`%s` has no usable `evals/eval.yaml` and `evals/baseline/summary.json`, and %s. Nothing trusted exists to compare with, so this check **fails** instead of passing without a comparison. This is **not a quality regression**, and the paid run was skipped.\n\nRestore `evals/baseline/` on `%s`: revert the change that removed it, or run *Update eval baseline* and merge that pull request. The pull request that restores it is judged by the base branch too, so it stays red until it is merged with an admin override (a code owner reviews it as usual). If you meant to retire the evals, remove this workflow as well.\n' "$BASE_REF" "$MISSING_WHY" "$BASE_REF" > "$gate"
+              ;;
+            bootstrap)
+              printf '## Eval gate not enforced yet\n\nThe base branch has no committed baseline (`evals/baseline/`), and its history shows none before, so there is nothing trusted to compare with. The suite ran and its report is attached, but no verdict was reached. Merge the first baseline, then set `REQUIRE_BASELINE` to `"true"` in this workflow (see README.md next to it).\n' > "$gate"
+              ;;
+            *)
+              printf '## Eval job did not finish\n\n%s ended with exit code %s. This is not a quality regression. See the job log of *%s*.\n' "$source" "$code" "$job" > "$gate"
+              ;;
+          esac
+
+          if [ "$TRUSTED_AVAILABLE" = "true" ] && [ "$TRUSTED_MISSING" != "true" ]; then
+            printf '\n<sub>Gate settings, baseline and the kit that compared come from `%s` @ `%s` (the base branch), not from this pull request. The candidate results themselves come from the pull request'"'"'s code.</sub>\n' "$BASE_REF" "${BASE_SHA:0:7}" >> "$gate"
+          fi
+          [ "$verdict" = bootstrap ] && code=0
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Add the result to the job summary
+        if: ${{ !cancelled() }}
+        run: cat "$RUNNER_TEMP/eval-out/gate.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build the HTML report
+        # The report is a convenience; it must never hide the verdict. Needs the candidate and the kit from the base branch.
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.download.outcome == 'success' }}
+        continue-on-error: true
+        run: |
+          out="$RUNNER_TEMP/eval-out"
+          evalsprint report "$out/candidate" --baseline evals/baseline --gate-config evals/eval.yaml -o "$out/candidate/report.html"
+
+      - name: Upload the run and report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: eval-report-${{ github.event.pull_request.number || 'manual' }}
+          path: ${{ runner.temp }}/eval-out  # candidate/ (with report.html), gate.md, gate.json
+          if-no-files-found: ignore
+          retention-days: 14
+          overwrite: true
+
+      - name: Upload the PR comment text
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: eval-gate-${{ github.event.pull_request.number || 'manual' }}
+          path: ${{ runner.temp }}/eval-out/gate.md
+          if-no-files-found: ignore
+          retention-days: 1
+          overwrite: true
+
+  comment:
+    name: Comment on the pull request
+    needs: compare
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.compare.result != 'skipped' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write  # the only thing this job can do; it checks out nothing and holds no API keys
+    steps:
+      - name: Download the comment text
+        continue-on-error: true
+        uses: actions/download-artifact@v6
+        with:
+          name: eval-gate-${{ github.event.pull_request.number }}
+          path: gate
+
+      - name: Create or update the sticky comment
+        # Best effort: the job summary already carries the result. Pull requests from forks get a
+        # read-only token, so this step warns instead of failing there.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          COMPARE_RESULT: ${{ needs.compare.result }}
+          MARKER: "<!-- evalsprint-gate -->"
+          # The account that posts with GITHUB_TOKEN. EDIT if you comment with a personal or App token.
+          COMMENT_AUTHOR: "github-actions[bot]"
+        run: |
+          python3 - << 'PY'
+          import os
+
+          body = "## Eval gate: no result\n\nThe compare job ended without writing a result (job result: " + os.environ["COMPARE_RESULT"] + "). See the workflow run.\n"
+          try:
+              with open("gate/gate.md", encoding="utf-8") as fh:
+                  body = fh.read() or body
+          except OSError:
+              pass
+          if len(body) > 60000:  # GitHub rejects comments above 65,536 characters
+              body = body[:60000] + "\n\n_(truncated: the full text is in the job summary)_\n"
+          with open("comment.md", "w", encoding="utf-8") as fh:
+              fh.write(os.environ["MARKER"] + "\n" + body)
+          PY
+
+          post_comment() {
+            gh api --paginate "repos/${GH_REPO}/issues/${PR_NUMBER}/comments" > comments.json || return 1
+            # Our comment: written by COMMENT_AUTHOR and starting with the marker. Nobody else's is touched.
+            id="$(python3 - << 'PY'
+          import json
+          import os
+
+          text = open("comments.json", encoding="utf-8").read()
+          decoder, pos, found = json.JSONDecoder(), 0, ""
+          while pos < len(text):
+              while pos < len(text) and text[pos].isspace():
+                  pos += 1
+              if pos >= len(text):
+                  break
+              page, pos = decoder.raw_decode(text, pos)  # --paginate prints one JSON array per page
+              for comment in page:
+                  mine = (comment.get("user") or {}).get("login") == os.environ["COMMENT_AUTHOR"]
+                  if mine and (comment.get("body") or "").startswith(os.environ["MARKER"]):
+                      found = found or str(comment["id"])
+          print(found)
+          PY
+          )"
+            if [ -n "$id" ]; then
+              gh api --method PATCH "repos/${GH_REPO}/issues/comments/${id}" -F body=@comment.md > /dev/null
+            else
+              gh api --method POST "repos/${GH_REPO}/issues/${PR_NUMBER}/comments" -F body=@comment.md > /dev/null
+            fi
+          }
+
+          if ! post_comment; then
+            echo "::warning title=Could not post the PR comment::The token may be read-only (pull request from a fork). The result is in the job summary of the compare job."
+          fi
+
+  gate:
+    name: LLM evals gate
+    needs: [check-secrets, changes, trusted, evals, compare]
+    if: ${{ !cancelled() }}  # always decides, even when the other jobs were skipped: a skipped job counts as passed for branch protection
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    env:
+      SECRETS_RESULT: ${{ needs.check-secrets.result }}
+      SECRETS_AVAILABLE: ${{ needs.check-secrets.outputs.available }}
+      SECRETS_REASON: ${{ needs.check-secrets.outputs.reason }}
+      CHANGES_RESULT: ${{ needs.changes.result }}
+      CHANGES_RELEVANT: ${{ needs.changes.outputs.relevant }}
+      TRUSTED_RESULT: ${{ needs.trusted.result }}
+      COMPARE_RESULT: ${{ needs.compare.result }}
+      VERDICT: ${{ needs.compare.outputs.verdict }}
+      EXIT_CODE: ${{ needs.compare.outputs.exit_code }}
+    steps:
+      - name: Enforce the gate
+        run: |
+          # 1. Did LLM code change at all? A pull request that touches none of EVAL_PATHS passes, with a note.
+          if [ "$CHANGES_RESULT" != "success" ]; then
+            echo "::error title=LLM eval path check failed::The job that decides whether LLM code changed ended with result '${CHANGES_RESULT:-unknown}', so the gate cannot tell whether evals were needed. This is not a quality regression. Re-run the workflow."
+            exit 1
+          fi
+          if [ "$CHANGES_RELEVANT" = "false" ]; then
+            echo "::notice title=LLM evals skipped::No file matching EVAL_PATHS changed in this pull request, so the paid eval run was skipped and this check passes."
+            {
+              printf '## LLM evals skipped: no LLM code changed\n\n'
+              printf 'No file that matches `EVAL_PATHS` (or `evals/**`, or the eval workflows) changed in this pull request, so the paid eval run was skipped and **this check passes without a comparison**.\n\n'
+              printf 'If this change can alter what the LLM feature outputs, add its path to `EVAL_PATHS` in `.github/workflows/evals.yml`.\n'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # 2. LLM code changed, so the paid run is needed: the key check must have answered.
+          if [ "$SECRETS_RESULT" != "success" ]; then
+            echo "::error title=LLM eval key check failed::The job that looks for API keys ended with result '${SECRETS_RESULT:-unknown}', so the gate cannot tell whether the evals could run. This is not a quality regression. Re-run the workflow."
+            exit 1
+          fi
+
+          # 3. LLM code changed but the evals could not run because no API key is available.
+          if [ "$SECRETS_AVAILABLE" = "false" ]; then
+            if [ "$SECRETS_REASON" = "fork" ]; then
+              why="this pull request comes from a fork, which never receives repository secrets"
+            elif [ "$SECRETS_REASON" = "dependabot" ]; then
+              why="this pull request was opened by Dependabot, whose workflows see only Dependabot secrets and not the Actions secrets (add the API key under Settings > Secrets and variables > Dependabot, or accept that these pull requests are not evaluated)"
+            else
+              why="no API key secret is configured for this repository"
+            fi
+            echo "::warning title=LLM evals did not run::Nothing was verified: ${why}. Ask a maintainer to run the evals on a branch of this repository before merging."
+            if [ "$FAIL_WITHOUT_SECRETS" = "true" ]; then
+              outcome='This check **fails** because `FAIL_WITHOUT_SECRETS` is `"true"` in the workflow.'
+            else
+              outcome='This check is **green only because** `FAIL_WITHOUT_SECRETS` is `"false"` in the workflow. Set it to `"true"` to fail instead.'
+            fi
+            {
+              printf '## LLM evals did not run\n\nNothing was verified: %s.\n\n%s\n\n' "$why" "$outcome"
+              printf 'A maintainer should run *LLM evals* manually (Actions, Run workflow) on a branch of this repository that has the same commit.\n'
+            } >> "$GITHUB_STEP_SUMMARY"
+            if [ "$FAIL_WITHOUT_SECRETS" = "true" ]; then
+              echo "::error title=LLM evals did not run::FAIL_WITHOUT_SECRETS is true and no API key is available (${why})."
+              exit 1
+            fi
+            exit 0
+          fi
+
+          # 4. The evals were needed and could run, so the base branch must have been read.
+          if [ "$TRUSTED_RESULT" != "success" ]; then
+            echo "::error title=LLM eval base-branch read failed::The job that reads the gate settings and the baseline from the base branch ended with result '${TRUSTED_RESULT:-unknown}', so nothing trusted exists to compare with. This is not a quality regression. Re-run the workflow."
+            exit 1
+          fi
+
+          # 5. The evals ran (or tried to): the verdict of the compare job decides.
+          case "$VERDICT" in
+            pass)
+              echo "Eval gate passed."
+              ;;
+            bootstrap)
+              echo "::warning title=LLM evals not enforced::The base branch has no baseline yet, so nothing was compared. Merge the first baseline to turn the gate on, then set REQUIRE_BASELINE to true."
+              ;;
+            baseline_missing)
+              echo "::error title=LLM eval baseline missing::The base branch lost its evals/baseline/ (or REQUIRE_BASELINE is true and it never had one), so nothing trusted exists to compare with. Not a quality regression: restore the baseline. See the job summary of the compare job."
+              exit 1
+              ;;
+            regression)
+              echo "::error title=LLM eval regression::The regression gate failed: the candidate is worse than the baseline, or the test cases or judges changed without an approved baseline update. The reasons are in the PR comment and in the job summary of the compare job."
+              exit 1
+              ;;
+            config_error)
+              echo "::error title=LLM eval configuration error::evalsprint exited with code 2: a setup problem, not a quality regression. The job summary of the compare job says which step printed it."
+              exit 1
+              ;;
+            unhealthy)
+              echo "::error title=LLM eval infrastructure error::The eval run was unhealthy (exit code 3): errors from the target or the judge, not a quality regression. Re-run the job once the provider has recovered."
+              exit 1
+              ;;
+            *)
+              if [ "$VERDICT" = "error" ]; then
+                detail="ended with an unexpected exit code (${EXIT_CODE:-unknown})"
+              else
+                detail="ended with result '${COMPARE_RESULT:-unknown}' and no verdict"
+              fi
+              echo "::error title=LLM eval job did not finish::The compare job ${detail}. This is not a quality regression. See its log and the log of the Run evals job."
+              exit 1
+              ;;
+          esac

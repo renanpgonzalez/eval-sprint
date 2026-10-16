@@ -1,0 +1,27 @@
+# CODEOWNERS.example: who must approve changes to the eval gate.
+#
+# Copy to .github/CODEOWNERS (or CODEOWNERS at the repository root) and replace the team below.
+# Then turn it on: Settings > Branches (or Rulesets) > protect your default branch >
+# "Require a pull request before merging" > "Require review from Code Owners".
+#
+# Why this matters: the workflow reads the gate settings and the baseline from the BASE branch, so a
+# pull request cannot loosen its own gate through eval.yaml or replace its own baseline. The gate also
+# blocks a pull request that removes or edits cases, or changes the judge block, the rubric or pass_rule
+# (unless the base branch allows judge changes). It does NOT see the adapter and the code it calls,
+# the code of custom judges, new cases that only look easy, the pinned kit version or the workflow
+# files themselves; those are checked by review. Code owner review is the control that makes every one
+# of those edits visible to the people who own the gate, so it is required, not optional.
+#
+# A trailing slash covers everything below the directory, so evals/ includes evals/eval.yaml (gate:),
+# evals/baseline/, evals/cases.jsonl, evals/rubric.yaml, evals/target_adapter.py and
+# evals/requirements.txt (the pinned kit version).
+
+/evals/                                  @your-org/eval-owners
+/.github/workflows/evals.yml             @your-org/eval-owners
+/.github/workflows/evals-baseline.yml    @your-org/eval-owners
+/.github/CODEOWNERS                      @your-org/eval-owners
+
+# Optional: the prompts and LLM code themselves usually have their own owners, so an eval owner
+# does not have to review every prompt tweak. Listing them here keeps that split explicit.
+# /prompts/                              @your-org/prompt-owners
+# /src/llm/                              @your-org/prompt-owners

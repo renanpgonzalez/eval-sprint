@@ -1,0 +1,10 @@
+name: fixture-rubric
+task: The AI answers customer-support questions for a SaaS company.
+criteria:
+  - id: grounded
+    question: Is every fact in the output supported by the reference answer or context?
+    critical: true
+  - id: polite
+    question: Is the tone professional and polite?
+    critical: false
+    weight: 1

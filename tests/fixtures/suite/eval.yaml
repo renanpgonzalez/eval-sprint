@@ -1,0 +1,25 @@
+suite: fixture-support
+dataset: cases.jsonl
+concurrency: 4
+pass_rule: all
+
+target:
+  callable: target.py:answer
+  params:
+    model: claude-haiku-4-5
+
+judges:
+  - type: not_contains
+    name: no_apology_loop
+    values: ["as an ai language model"]
+  - type: llm
+    name: quality
+    rubric: rubric.yaml
+    provider: mock
+    provider_options:
+      responder: judge_responder.py:judge_responder
+    model: claude-haiku-4-5
+    when_behavior: [answer]
+
+gate:
+  max_pass_rate_drop: 0.05

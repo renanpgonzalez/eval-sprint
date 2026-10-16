@@ -1,0 +1,36 @@
+# evals/requirements.txt: what the eval CI job installs (copy to evals/requirements.txt in the client repo).
+#
+# 1. PIN THE KIT. The gate's defaults and statistics can change between kit versions, and a moving
+#    reference would make the same code pass one week and fail the next. Pin an exact release tag or
+#    commit, and upgrade it in a reviewed pull request (CODEOWNERS.example protects this file).
+#    The comparison job of the PR gate installs the kit from THIS file as it is on the base branch, not
+#    from the pull request: a pull request that swaps the kit for another one is judged by the old one.
+#    The kit lives in the public repository github.com/renanpgonzalez/eval-sprint:
+evalsprint @ git+https://github.com/renanpgonzalez/eval-sprint@v0.2.0
+
+# 2. IF YOU INSTALL FROM A PRIVATE FORK. pip needs a credential to clone it. Create a fine-grained token with
+#    read-only "Contents" access to that ONE repository, store it as the repository secret
+#    EVALSPRINT_READ_TOKEN, and the workflows configure git with it for the duration of the install
+#    (see evalsprint/templates/github/README.md in the kit). Locally, an authenticated `gh auth setup-git` or an SSH URL works:
+#      evalsprint @ git+ssh://git@github.com/renanpgonzalez/eval-sprint.git@v0.2.0
+#    If the kit is published to a package index, use its pinned version instead:
+#      evalsprint==0.2.0
+#
+#    WHO CAN READ THE TOKEN. The job that runs the pull request's code installs THIS file from the pull
+#    request, and the token is in its environment while that install runs: a requirement, a build
+#    script or an edit to this very file is code from the PR and can read it. The workflow removes it from
+#    git's config afterwards, which only stops it from outliving the step. Keep the token read-only and
+#    limited to the kit repository. If the kit must stay private from the people who open pull requests
+#    (contractors, forks, a big team), use the vendored wheel instead and delete the secret from that job:
+#      ./evals/vendor/evalsprint-0.2.0-py3-none-any.whl
+#    (a line of its own instead of the evalsprint line above. The wheel is a release asset of the kit,
+#    committed under evals/vendor/. The path is relative to the directory pip runs in, the repository root
+#    for the workflows; see github/README.md, section 2.)
+
+# 3. WHAT YOUR TARGET NEEDS. Everything evals/target_adapter.py imports, pinned the same way,
+#    for example the package that holds the feature under test:
+# -e .                       # the client repository itself (run from the repository root)
+# your-llm-feature==1.4.2
+# openai==1.99.9             # only if the adapter calls a provider SDK; the kit itself only needs PyYAML
+
+# PyYAML (>= 6.0) is installed by the kit. Do not list numpy, pandas or similar: the kit does not use them.
