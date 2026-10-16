@@ -1128,6 +1128,8 @@ class TestHistory(CliTestCase):
         torn = self.runs / "20260302-000000-torn"
         shutil_copy_run(self.good_run, torn)
         (torn / "results.partial.jsonl").write_text("{}\n", encoding="utf-8")  # a newer run started in this directory
+        later = (torn / "summary.json").stat().st_mtime + 60  # both files were written within one clock tick (about 16 ms on Windows): say which is newer
+        os.utime(torn / "results.partial.jsonl", (later, later))
         code, _, err = run_cli("history", self.runs)
         self.assertEqual(code, 0)
         self.assertEqual(len(self.seen[0][1]), 2)
