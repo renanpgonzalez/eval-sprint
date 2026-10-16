@@ -2,7 +2,7 @@
 
 The kit is plain Python and runs on Windows 10 and 11. This page is the short list of things that differ from Linux and macOS. The CI workflows run on Linux runners; nothing in them needs Windows.
 
-> **What was and was not verified.** Everything here comes from reading the code and from simulating a legacy console encoding on Linux (`PYTHONIOENCODING=cp1252`). The kit was **not** run on a real Windows machine. Treat it as a checklist, and tell us which line was wrong.
+> **What was and was not verified.** The test suite was run on a real Windows 11 machine with Python 3.12 and passes (section 6; the fixes that run led to are under *Unreleased* in the [changelog](../CHANGELOG.md)). The rest of this page, the install steps, the console and PowerShell commands, labeling and the Excel notes, still comes from reading the code and from simulating a legacy console encoding on Linux (`PYTHONIOENCODING=cp1252`): nobody has followed it step by step on Windows. Treat it as a checklist, and tell us which line was wrong.
 
 ## 1. Install
 
@@ -64,7 +64,7 @@ py -3.12 -m unittest discover -s tests -p "test_*.py"
 py -3.12 examples\support_bot\run_demo.py
 ```
 
-The part of `tests/test_templates.py` that executes the CI workflows skips itself on Windows (it needs `bash`); `tests/test_packaging.py` builds the wheel and skips itself when `setuptools` and `wheel` are not installed; every other test runs. The demo writes to `demo_out\`.
+The part of `tests/test_templates.py` that executes the CI workflows skips itself on Windows (it needs `bash`); `tests/test_packaging.py` builds the wheel and skips itself when `setuptools` and `wheel` are not installed; every other test runs. On Windows 11 with Python 3.12 the whole suite passes (2513 tests, 124 skipped, about 4.5 minutes). The demo writes to `demo_out\`.
 
 ## 7. Environment variables and secrets
 
