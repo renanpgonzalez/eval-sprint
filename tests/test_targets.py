@@ -657,6 +657,19 @@ class PathScrubbingTests(unittest.TestCase):
         self.assertNotIn("targets.py", tb)  # Target._call is not the user's code
         self.assertTrue(out.error.startswith("RuntimeError: boom at ./adapter.py") or "adapter.py" in out.error)
 
+    def test_a_base_dir_that_is_not_in_resolved_form_still_scrubs_the_paths(self):
+        # the traceback names the file by its resolved path; the same holds for "." and for a Windows 8.3 short name or a symlink
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "sub").mkdir()
+            (Path(tmp) / "adapter.py").write_text("def answer(input, params):\n    raise RuntimeError('boom at ' + __file__)\n", encoding="utf-8")
+            fn = load_callable("adapter.py:answer", tmp)
+            out = Target(fn, {}, base_dir=Path(tmp) / "sub" / "..")(Case(id="c", input="q"))
+            resolved = str(Path(tmp).resolve())
+        self.assertIn('File "adapter.py"', out.meta["traceback"])
+        for text in (out.meta["traceback"], out.error):
+            self.assertNotIn(tmp, text)
+            self.assertNotIn(resolved, text)
+
     def test_traceback_keeps_the_innermost_frames(self):
         def deep(n):
             if n == 0:

@@ -90,7 +90,10 @@ class Target:
         self.fn = fn
         self.params = dict(params or {})
         self.prices = prices or PriceTable()
-        self.base_dir = base_dir
+        # resolved like load_callable resolves it: the traceback names the callable's file by its resolved path, so a base
+        # directory given as "." or with a Windows 8.3 short name (C:\Users\RENANG~1\...) or through a symlink would
+        # match nothing and the absolute path would reach the committed baseline
+        self.base_dir = Path(base_dir).resolve() if base_dir else None
 
     @classmethod
     def from_config(cls, target_cfg: dict, base_dir, prices: PriceTable) -> "Target":
