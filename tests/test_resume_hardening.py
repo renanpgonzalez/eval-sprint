@@ -431,7 +431,7 @@ class FailedFinalSaveTests(test_resume.ResumeFixture):
         run_dir = next((self.dir / "runs").iterdir())
         self.assertTrue((run_dir / PARTIAL_NAME).is_file())
         self.assertEqual(len(self.partial_lines(run_dir)), 6)  # all six cases were paid for and are safe
-        self.assertIn(str(run_dir), err)
+        self.assertIn(str(run_dir.resolve()), err)  # the kit prints the resolved path: C:\Users\RENANG~1\... (the short temp dir name) comes out as C:\Users\Renan Gonzalez\...
 
     def test_the_hint_works(self):
         with mock.patch("evalsprint.runner.save_run", side_effect=OSError(28, "No space left on device")):
