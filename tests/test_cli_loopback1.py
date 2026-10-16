@@ -11,6 +11,7 @@
 import contextlib
 import io
 import json
+import os
 import re
 import tempfile
 import unittest
@@ -301,7 +302,7 @@ class ForgedSummaryTests(Fixture):
         # ... and when the report fails for the candidate's field, the candidate is the one named
         run = self.forged("both", lambda s: s.update(pass_rate="x"))
         _, _, err = cli("report", run, "--baseline", bad_base, "-o", self.dir / "r.html")
-        self.assertIn("both/summary.json", err)
+        self.assertIn(os.path.join("both", "summary.json"), err)  # the path is printed with the platform's separator
         self.assertIn("'pass_rate'", err)
 
     def test_a_summary_report_copes_with_is_still_fine(self):
