@@ -1008,8 +1008,8 @@ class TestStreams(unittest.TestCase):
 
         with self.assertRaises(UnicodeEncodeError):  # the premise: a strict cp1252 stream does crash on this text
             io.TextIOWrapper(io.BytesIO(), encoding="cp1252", errors="strict").write("日本語")
-        strict = io.TextIOWrapper(io.BytesIO(), encoding="cp1252", errors="strict")
-        with mock.patch.object(sys, "stdout", strict), mock.patch.object(sys, "stderr", io.TextIOWrapper(io.BytesIO(), encoding="cp1252", errors="strict")):
+        strict = io.TextIOWrapper(io.BytesIO(), encoding="cp1252", errors="strict", newline="\n")  # newline="\n": the default writes \r\n on Windows, and this test compares bytes
+        with mock.patch.object(sys, "stdout", strict), mock.patch.object(sys, "stderr", io.TextIOWrapper(io.BytesIO(), encoding="cp1252", errors="strict", newline="\n")):
             _configure_streams()
             print("olá 日本語 ✓ — “x”")
             print("olá 日本語", file=sys.stderr)
