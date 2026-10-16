@@ -133,7 +133,8 @@ def is_excluded_dir(name: str) -> bool:
 
 
 def read_text_or_none(path: Path) -> str | None:
-    """File content as text, or None when the file is binary / not UTF-8."""
+    """File content as text (CRLF read as LF, so a Windows checkout gives the same snapshot as a Linux one), or None
+    when the file is binary / not UTF-8."""
     try:
         data = path.read_bytes()
     except OSError:
@@ -141,7 +142,7 @@ def read_text_or_none(path: Path) -> str | None:
     if b"\x00" in data[:8192]:
         return None
     try:
-        return data.decode("utf-8")
+        return data.decode("utf-8").replace("\r\n", "\n")
     except UnicodeDecodeError:
         return None
 
@@ -355,7 +356,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     snap = snapshot(root, out_path, opts)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(snap.markdown, encoding="utf-8")
+    out_path.write_bytes(snap.markdown.encode("utf-8"))  # bytes: write_text would turn every "\n" into "\r\n" on Windows, and the size in the header would no longer be the file's
     print(f"wrote {out_path} ({snap.size_bytes / 1024:.0f} KB): {len(snap.included)} files, {len(snap.skipped)} skipped, {sum(snap.excluded.values())} left out by rule")
     if snap.excluded:
         print(f"left out by rule: {describe_excluded(snap.excluded)}")

@@ -35,7 +35,7 @@ def write(root: Path, rel: str, text: str | bytes = "x = 1\n") -> Path:
     if isinstance(text, bytes):
         path.write_bytes(text)
     else:
-        path.write_text(text, encoding="utf-8")
+        path.write_text(text, encoding="utf-8", newline="\n")  # LF on every platform: the default would write CRLF on Windows
     return path
 
 
@@ -285,6 +285,12 @@ class TestDocument(SnapshotTestCase):
     def test_output_is_deterministic(self):
         self.assertEqual(snap(self.root).markdown, snap(self.root).markdown)
 
+    def test_crlf_files_are_read_as_lf(self):
+        write(self.root, "docs/CRLF.md", b"one\r\ntwo\r\n")  # a Windows checkout with core.autocrlf=true
+        s = snap(self.root)
+        self.assertIn("```markdown\none\ntwo\n```", s.markdown)
+        self.assertNotIn("\r", s.markdown)
+
     def test_nested_fences_survive(self):
         write(self.root, "docs/NESTED.md", "text\n```python\nx = 1\n```\nmore\n")
         s = snap(self.root)
@@ -327,6 +333,16 @@ class TestCli(SnapshotTestCase):
         self.assertIn("left out by rule", stdout)
         self.assertIn("orchestration/ scratch", stdout)
         self.assertIn(f"- Size: {m.group(1)} KB", text)
+
+    def test_the_file_has_lf_endings_and_the_size_of_the_header(self):
+        write(self.root, "docs/CRLF.md", b"one\r\ntwo\r\n")
+        code, _, _, out = self.run_cli()
+        self.assertEqual(code, 0)
+        raw = out.read_bytes()
+        self.assertNotIn(b"\r", raw)  # neither the CRLF of a source file nor the "\n" -> "\r\n" of a text-mode write on Windows
+        size = re.search(rb"^- Size: (\d+) KB$", raw, re.M)
+        self.assertIsNotNone(size)
+        self.assertLessEqual(abs(int(size.group(1)) - len(raw) / 1024), 0.6)
 
     def test_no_tests_flag(self):
         _, stdout_all, _, out_all = self.run_cli()
